@@ -10,10 +10,8 @@ It will keep history of the trades and their outcomes
 """
 from typing import List
 from kraken import Kraken, Constants
-from datetime import datetime
 import pandas as pd
 from trade_objects import Account, Position, ShortPosition, LongPosition, POSITION_TYPE, POSITION_STATE, engine
-from config import strategy, options, extras
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 import time
@@ -51,8 +49,17 @@ class Advisor():
     def __init__(self, strategy: str, options) -> None:
         self._strategy: str = strategy
         self._options = options
+        self._choc_expired = False
+
+    def choc_reset(self):
+        self._choc_expired = False
+
+    def choc_expire(self):
+        self._choc_expired = True
 
     def generate_positions(self, closing_price, balance, signals, options):
+        if not signals["primary_struct"]["choc"]:
+            self.choc_reset()
 
         match self._strategy:
             case "SIMPLE_TREND":
@@ -70,13 +77,14 @@ class Advisor():
                                 if self._options["reward_ratio"] is not None else None
                             return self.build_position(POSITION_TYPE.BUY, closing_price, sl, tp, balance, signals, options)
                     elif self._options["entry"] == "CHOC":
-                        if signals["primary_struct"]["choc"] and signals["primary_struct"]["dir"] == Constants.DIRECTION.DOWN: # down changing to UP
+                        if signals["primary_struct"]["choc"] and not self._choc_expired and signals["primary_struct"]["seg_dir"] == Constants.DIRECTION.DOWN: # down changing to UP
                             # enter position
                             # sl
                             sl = signals["primary_struct"]["key_levels"]["low"]
                             sl = sl - (closing_price - sl) * self._options["sl_level_margin"]
                             tp = closing_price + (closing_price - sl) * self._options["reward_ratio"] \
                                 if self._options["reward_ratio"] is not None else None
+                            self.choc_expire()
                             return self.build_position(POSITION_TYPE.BUY, closing_price, sl, tp, balance, signals, options)
                     else:
                         return None
@@ -93,13 +101,14 @@ class Advisor():
                                 if self._options["reward_ratio"] is not None else None
                             return self.build_position(POSITION_TYPE.SELL, closing_price, sl, tp, balance, signals, options)
                     elif self._options["entry"] == "CHOC":
-                        if signals["primary_struct"]["choc"] and signals["primary_struct"]["dir"] == Constants.DIRECTION.UP: # down changing to DOWN
+                        if signals["primary_struct"]["choc"] and not self._choc_expired and signals["primary_struct"]["seg_dir"] == Constants.DIRECTION.UP: # down changing to DOWN
                             # enter position
                             # sl
                             sl = signals["primary_struct"]["key_levels"]["high"]
                             sl = sl + (sl - closing_price) * self._options["sl_level_margin"]
                             tp = closing_price - (closing_price - sl) * self._options["reward_ratio"] \
                                 if self._options["reward_ratio"] is not None else None
+                            self.choc_expire()
                             return self.build_position(POSITION_TYPE.SELL, closing_price, sl, tp, balance, signals, options)
                     else:
                         return None
@@ -232,6 +241,8 @@ class Animus():
         self._annotation_candle_length = 100
         self._account_id = None
         self._sim_speed = 0.0
+        self._publish_live_data = False
+        self._sim_options = None
 
     # returns data used to mark points of interest on graphs
     # includes price action, support and resistance, positions
@@ -256,6 +267,16 @@ class Animus():
     @sim_speed.setter
     def sim_speed(self, value):
         self._sim_speed = value
+
+
+    @property
+    def publish_live_data(self):
+        return self._publish_live_data
+    
+    @publish_live_data.setter
+    def publish_live_data(self, value):
+        self._publish_live_data = value
+
     """
     Method to kick off a simulation of the market.
     start: the starting date and time of the simulation
@@ -275,11 +296,11 @@ class Animus():
         "max_concurrent_trades": e.g 5, 10 
     }
     """
-    def run_backtest(self, start: str, end: str, strategy: str, options,
+    def run_backtest(self, start: str, end: str, strategy: str, options, extras, publish_data_func,
                       pst_file: str, sr_file: str = None, pst_sr_ratio: int = None):
         
         logger.info("Running backtest: %s on %s from %s to %s...", strategy, options["instr"], start, end)
-        print("Running backtest: {} on {} from {} to {}...xxxxxxx".format(strategy, options["instr"], start, end))
+        print("Running backtest: {} on {} from {} to {}...".format(strategy, options["instr"], start, end))
         
         # load data from files
         # load pst file
@@ -291,6 +312,8 @@ class Animus():
                 raise ValueError ("pst_sr_ratio cannot be null when sr data provided")
             else:
                 self._pst_sr_iloc_ratio = pst_sr_ratio
+
+        self._sim_options = options
 
         # get initial iloc positions
         # pst iloc
@@ -334,6 +357,7 @@ class Animus():
             
             for index, row in self._pst_data.iloc[self._pst_iloc:self._pst_last_iloc+1].iterrows():
                 self._pst_iloc = self._pst_data.index.get_loc(index)
+                #print("ROW INDEX IS {}, PST_ILOC IS {}".format(index, self._pst_iloc))
 
                 # step through the candles
                 # add candle to the Kraken
@@ -350,12 +374,14 @@ class Animus():
                             "type": pos.type,
                             "entry_time": pos.entry_time,
                             "exit_time": pos.exit_time,
-                            "entry": pos.price,
+                            "price": pos.price,
                             "sl": pos.sl,
                             "tp": pos.tp,
-                            "close": pos.close
+                            "close": pos.close,
+                            "state": pos.state
                         }
                     )
+                    #print(pos)
 
                 self._positions_data = position_data
 
@@ -421,6 +447,12 @@ class Animus():
                                     session.commit()
 
                 # slow down simulation speed to see trades in real time
+                session.commit()
+
+                # publish data
+                if self._publish_live_data:
+                    publish_data_func()
+
                 time.sleep(self._sim_speed)
 
             session.commit()
@@ -432,7 +464,7 @@ class Animus():
     """
     def get_all_simulation_data(self):
         # get the candle sticks
-        bars = self._kraken.pst_data.to_csv(orient="records")
+        bars = self._kraken.pst_data.reset_index(inplace=False).to_csv(orient="records")
         # get annotation for candlesticks
         annotation = self._kraken.get_annotation(len(bars))
         # get positions/trades
@@ -447,17 +479,19 @@ class Animus():
                         "type": pos.type,
                         "entry_time": pos.entry_time,
                         "exit_time": pos.exit_time,
-                        "entry": pos.price,
+                        "price": pos.price,
                         "sl": pos.sl,
                         "tp": pos.tp,
-                        "close": pos.close
+                        "close": pos.close,
+                        "state": pos.state
                     }
                 )
 
         return {
             "bars": bars,
             "annotation": annotation,
-            "trades": trades
+            "trades": trades,
+            "options": self._sim_options
         }
 
     """
@@ -465,14 +499,15 @@ class Animus():
     """
     def get_running_simulation_data(self):
         # get the candle sticks       
-        bars = self._kraken.pst_data.iloc[self._pst_iloc-self._annotation_candle_length:self._pst_iloc+1].to_dict(orient="records")
+        bars = self._kraken.pst_data.iloc[-self._annotation_candle_length:].reset_index(inplace=False).to_dict(orient="records")
         annotation = self.annotation_data
         trades = self._positions_data
 
         return {
             "bars": bars,
             "annotation": annotation,
-            "trades": trades
+            "trades": trades,
+            "options": self._sim_options
         }
 
     """

@@ -36,16 +36,16 @@ print(annotation['sr_zones'])
 
 # creat figure1
 figure1 = go.Figure(data=[go.Candlestick(x=pst_df.index, open=pst_df['open'], high=pst_df['high'], low=pst_df['low'], close=pst_df['close'])])
-figure1.update_layout(height=800)
+figure1.update_layout(height=800, xaxis_rangeslider_visible=False)
 for position in annotation["primary"]["bos"]:
     if isinstance(position, datetime):
-        figure1.add_shape(type="line", x0=position, x1=position, y0=annotation["primary"]["min"], y1=annotation["primary"]["max"], line=dict(color='green', width=1))
-for position in annotation["primary"]["choc"]:
-    if isinstance(position, datetime):
-        figure1.add_shape(type="line", x0=position, x1=position, y0=annotation["primary"]["min"], y1=annotation["primary"]["max"], line=dict(color='purple', width=1))
-for position in annotation["primary"]["choc_confirm"]:
-    if isinstance(position, datetime):
-        figure1.add_shape(type="line", x0=position, x1=position, y0=annotation["primary"]["min"], y1=annotation["primary"]["max"], line=dict(color='red', width=1))
+        figure1.add_vline(x=position, line_with=2, line_color="green")
+# for position in annotation["primary"]["choc"]:
+#     if isinstance(position, datetime):
+#         figure1.add_shape(type="line", x0=position, x1=position, y0=annotation["primary"]["min"], y1=annotation["primary"]["max"], line=dict(color='purple', width=1))
+# for position in annotation["primary"]["choc_confirm"]:
+#     if isinstance(position, datetime):
+#         figure1.add_shape(type="line", x0=position, x1=position, y0=annotation["primary"]["min"], y1=annotation["primary"]["max"], line=dict(color='red', width=1))
 
 x = []
 y = []

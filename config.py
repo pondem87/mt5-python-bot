@@ -3,12 +3,12 @@ from datetime import datetime
 strategy = "SIMPLE_TREND"
 
 options = {
-    "entry": "CHOC_CONFIRMED",          # e.g "CHOC", "CHOC_CONFIRMED,
-    "exit": "CHOC",
+    "entry": "CHOC",          # e.g "CHOC", "CHOC_CONFIRMED,
+    "exit": "CHOC_CONFIRMED",
     "sl_level": "SEGMENT_RANGE",   # e.g "KEY_LEVEL", "SEGMENT_RANGE",
     "sl_level_margin": 0.2,             # e.g 0.1, 0.2,
-    "reward_ratio": 2,               # e.g 1.5, 2, 3, None,
-    "pst_lookback_window": 200,         # e.g 200, 250, 300,
+    "reward_ratio": 1.5,               # e.g 1.5, 2, 3, None,
+    "pst_lookback_window": 350,         # e.g 200, 250, 300,
     "sr_lookback_window": 300,          # e.g 200, 250, 300,
     "init_account_balance": 100,        # e.g 100,
     "risk_per_trade": 0.1,              # e.g 0.1, 0.4,

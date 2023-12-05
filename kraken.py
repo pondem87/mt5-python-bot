@@ -1180,6 +1180,9 @@ class Kraken:
         self._pst_data: pd.DataFrame = None
         self._sr_data: pd.DataFrame = None
 
+    @property
+    def pst_data(self):
+        return self._pst_data
 
     def add_candle(self, time: datetime, open: float, high: float, low: float, close: float):
         # add candle to dataframe
@@ -1308,11 +1311,18 @@ class Kraken:
     """
     This function generates information required to mark out points of interest on graphs
     """
-    def get_annotation(self, prim_segments: int = 1) -> dict:
+    def get_annotation(self, candle_length: int = 100) -> dict:
         logger.info("Compiling annotation data...")
 
         # set number of p-segments to retrieve
-        pss = prim_segments if len(self._prim_segments) > prim_segments else len(self._prim_segments)
+        pss = 0
+        candles = candle_length
+
+        while True:
+            pss += 1
+            candles = candles - len(self._prim_segments[-pss].candles)
+            if candles <= 0 or pss >= len(self._prim_segments):
+                break
 
         primary = {
             "bos": [],

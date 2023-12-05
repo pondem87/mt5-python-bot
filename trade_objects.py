@@ -195,6 +195,8 @@ class Position(Base):
         logger.info("Simulation position created. Position(%s)-%s Price: %s, Volume: %s, SL: %s, TP: %s",
                     self._id, self._type, self._price, self._vol, self._sl, self._tp)
 
+    def __repr__(self) -> str:
+        return "Position: type {}, instr {}, entry time {}, price: {}, state {}, close price {}".format(self.type, self.instr, self.entry_time, self.price, self.state, self.close)
 
     @property
     def id(self) -> str:
@@ -238,23 +240,23 @@ class Position(Base):
 
     @property
     def entry_time(self) -> str:
-        self._entry_time
+        return self._entry_time
 
     @property
     def exit_time(self) -> str:
-        self._exit_time
+        return self._exit_time
 
     @property
     def sl(self) -> str:
-        self._sl
+        return self._sl
 
     @property
     def tp(self) -> str:
-        self._tp
+        return self._tp
 
     @property
     def close(self) -> str:
-        self._close
+        return self._close
 
     """
     Actively close an open position
@@ -265,6 +267,7 @@ class Position(Base):
             # calculate profit
             self._profit = (self._price - price) if self._type == POSITION_TYPE.SELL.value else (price - self._price)
             # close position
+            self._close = price
             self._state = POSITION_STATE.CLOSED.value
             # calculate and set reward units
             self._reward_units = self.profit / abs(self.price - self._initial_sl) if self._initial_sl is not None else None
@@ -364,6 +367,7 @@ class ShortPosition(Position):
 
         type = POSITION_TYPE.SELL.value
         super().__init__(account_id, type, instr, entry_time, contract_size, vol, price, sl, tp)
+
     
     @property
     def sl(self):
@@ -440,4 +444,4 @@ class LongPosition(Position):
             raise ValueError("Take profit must be a positive float.")
 
 # database engine
-engine = create_engine("sqlite:///data/my_testdb.db", echo=True)
+engine = create_engine("sqlite:///data/my_testdb.db", echo=False)
