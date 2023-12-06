@@ -6,7 +6,7 @@ import json
 
 animus = Animus()
 
-animus.sim_speed = 0.5
+animus.sim_speed = 0.25
 animus.publish_live_data = True
 animus.annotation_candle_length = 200
 
@@ -34,7 +34,7 @@ def run_backtest(strategy, options, extras, publish_live_data):
         options,
         extras,
         publish_live_data,
-        "instr_data\crash_1000_index_H1_2020-09-18_to_2023-11-30.csv",
+        options["raw_data"]["primary"],
         None,
         None)
 

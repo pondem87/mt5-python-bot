@@ -197,6 +197,10 @@ class Position(Base):
 
     def __repr__(self) -> str:
         return "Position: type {}, instr {}, entry time {}, price: {}, state {}, close price {}".format(self.type, self.instr, self.entry_time, self.price, self.state, self.close)
+    
+
+    def move_sl(self, value, close_price):
+        self._sl = value
 
     @property
     def id(self) -> str:
@@ -247,8 +251,12 @@ class Position(Base):
         return self._exit_time
 
     @property
-    def sl(self) -> str:
+    def sl(self) -> float:
         return self._sl
+    
+    @property
+    def initial_sl(self) -> float:
+        return self._initial_sl 
 
     @property
     def tp(self) -> str:
@@ -373,9 +381,8 @@ class ShortPosition(Position):
     def sl(self):
         return self._sl
 
-    @sl.setter
-    def sl(self, value):
-        if isinstance(value, float) and value > 0:
+    def move_sl(self, value, close_price):
+        if isinstance(value, float) and value > 0 and close_price < value:
             self._sl = float(value)
         else:
             logger.error("Value Error: Stop loss must be a positive float.")
@@ -423,9 +430,9 @@ class LongPosition(Position):
     def sl(self):
         return self._sl
 
-    @sl.setter
-    def sl(self, value):
-        if isinstance(value, float) and value > 0:
+    
+    def move_sl(self, value, close_price):
+        if isinstance(value, float) and value > 0 and close_price > value:
             self._sl = float(value)
         else:
             logger.error("Value Error: Stop loss must be a positive float.")

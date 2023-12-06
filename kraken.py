@@ -50,10 +50,19 @@ class Constants:
         SUPPORT = "SUPPORT"
         RESISTANCE = "RESISTANCE"
 
-    class ZONING_MODE:
+    class ZONING_MODE(Enum):
         CANDLE = "CANDLE"
         BODY = "BODY"
         WICK = "WICK"
+
+    class PST_DATA_LEVEL(Enum):
+        LOW = "low"
+        MID = "mid"
+        HIGH = "high"
+
+    class SR_DATA_LEVEL(Enum):
+        LOW = "low"
+        HIGH = "high"
 
 """
 Class for working on candles. Provides access to candle properties and useful operations on candle data
@@ -101,7 +110,9 @@ class Candle:
 Class for common segment features. Shared by all segment levels.
 """
 class BaseSegment:
-    def __init__(self, dir: Constants.DIRECTION = Constants.DIRECTION.UNDETERMINED,
+    def __init__(self,
+                 time_frame: str,
+                 dir: Constants.DIRECTION = Constants.DIRECTION.UNDETERMINED,
                  key_low: float = None,
                  key_high: float = None,
                  last_low: float = None,
@@ -110,6 +121,7 @@ class BaseSegment:
                  key_high_candle: float = None,
                  last_low_candle: float = None,
                  last_high_candle: float = None) -> None:
+        self._time_frame: str = time_frame
         self._dir: str = dir                 # direction of market "UP" or "DOWN" or "?"
         self._key_high: float = key_high     # in UP segment = BOS level, in DOWN segment = ChOC level
         self._key_low: float = key_low       # in DOWN segment = BOS level, in UP segment = ChOC level
@@ -133,6 +145,10 @@ class BaseSegment:
 
 
     # access instance variables as properties
+    @property
+    def time_frame(self) -> str:
+        return self._time_frame
+
     @property
     def choc(self) -> bool:
         return self._choc
@@ -172,6 +188,14 @@ class BaseSegment:
     @property
     def bos_num(self) -> int:
         return self._bos_num
+    
+    @property
+    def in_bos(self):
+        return self._in_bos
+    
+    @property
+    def in_pull_back(self):
+        return self._in_pull_back
 
     # maximum price range of segment
     @property
@@ -192,6 +216,7 @@ A new segment starts after a confirmed ChOC
 class PrimarySegment(BaseSegment):
     def __init__(self,
                  seg_id: str,
+                 time_frame: str,
                  dir: Constants.DIRECTION = Constants.DIRECTION.UNDETERMINED,
                  key_low: float = None,
                  key_high: float = None,
@@ -211,7 +236,7 @@ class PrimarySegment(BaseSegment):
                             last_low_candle=last_low_candle,
                             last_high_candle=last_high_candle)
         self._seg_id = seg_id
-        logger.info("New primary structure segment: id= %s, dir= %s", seg_id, self._dir)
+        logger.info("New primary structure segment: id= %s, timefame = %s, dir= %s", seg_id, self._time_frame,self._dir)
 
         # uninitialized instances variables
         self._candles: List[datetime] = []              # List of candles within segment identified by datetime
@@ -320,8 +345,8 @@ class PrimarySegment(BaseSegment):
     # adds new candle to structure and determines candle side effects
     def add_candle(self, candle: Candle) -> None:
 
-        logger.debug("Primary Segment(%s) adding candle(%s, high: %s, low: %s)", self.seg_id, candle.timestamp, candle.high, candle.low)
-        logger.debug("Primary Segment state: dir: %s key high: %s, key low: %s, last high: %s, last low: %s", self._dir, self._key_high, self._key_low, self._last_high, self._last_low)
+        logger.debug("Primary Segment(%s) adding candle(%s, high: %s, low: %s)", self._time_frame, candle.timestamp, candle.high, candle.low)
+        logger.debug("Primary Segment(%s) state: dir: %s key high: %s, key low: %s, last high: %s, last low: %s", self._time_frame, self._dir, self._key_high, self._key_low, self._last_high, self._last_low)
         
         # add candle to segment
         self._candles.append(candle.timestamp)
@@ -351,7 +376,7 @@ class PrimarySegment(BaseSegment):
                         self._key_high = self._last_high
                         self._key_high_candle = self._last_high_candle
                         self._key_high_candles.append(self._last_high_candle)
-                        logger.info("INTERNAL UPTREND: BOS pull back at %s, new key high at %s", candle.timestamp, self._key_high)
+                        logger.info("%s UPTREND: BOS pull back at %s, new key high at %s", self._time_frame, candle.timestamp, self._key_high)
 
                 # if price hasnt pulled back since getting into ChOC, check for pull back
                 if self.choc and not self._in_choc_pull_back:
@@ -363,7 +388,7 @@ class PrimarySegment(BaseSegment):
                         self._key_low_candles.append(self._last_low_candle)
                         self._last_high = candle.high
                         self._last_high_candle = candle.timestamp
-                        logger.info("INTERNAL UPTREND: ChOC pull back at %s, lower low = %s", candle.timestamp, self._key_low)
+                        logger.info("%s UPTREND: ChOC pull back at %s, lower low = %s", self._time_frame, candle.timestamp, self._key_low)
 
                 # check for BOS and ChOC in that order
                 if candle.close > self._key_high and self._in_pull_back and candle.dir == Constants.DIRECTION.UP:
@@ -387,7 +412,7 @@ class PrimarySegment(BaseSegment):
 
                     self._last_low = None
                     self._last_low_candle = None
-                    logger.info("INTERNAL UPTREND: BOS at %s, higher low = %s", candle.timestamp, self._key_low)
+                    logger.info("%s UPTREND: BOS at %s, higher low = %s", self._time_frame, candle.timestamp, self._key_low)
                     
                 elif candle.close < self._key_low:
                     # ChOC or ChOC confirm
@@ -396,7 +421,7 @@ class PrimarySegment(BaseSegment):
                         self._last_low = candle.low
                         self._last_low_candle = candle.timestamp
                         self._choc_candles.append(candle.timestamp)
-                        logger.info("INTERNAL UPTREND: ChOC at %s", candle.timestamp)
+                        logger.info("%s UPTREND: ChOC at %s", self._time_frame, candle.timestamp)
                     elif self._choc and self._in_choc_pull_back:
                         # this condition satisfies choc confirmation
                         self._choc_confirmed = True
@@ -406,7 +431,7 @@ class PrimarySegment(BaseSegment):
                         self._last_low = candle.low
                         self._last_low_candle = candle.timestamp
                         self._choc_confirm_candle = candle.timestamp
-                        logger.info("INTERNAL UPTREND: ChOC confirmation at %s", candle.timestamp)
+                        logger.info("%s UPTREND: ChOC confirmation at %s", self._time_frame, candle.timestamp)
 
             case Constants.DIRECTION.DOWN:
                 logger.debug("DOWN case match")
@@ -419,7 +444,7 @@ class PrimarySegment(BaseSegment):
                         self._key_low = self._last_low
                         self._key_low_candle = self._last_low_candle
                         self._key_high_candles.append(self._last_high_candle)
-                        logger.info("INTERNAL DOWNTREND: BOS pull back at %s, new key low at %s", candle.timestamp, self._key_low)
+                        logger.info("%s DOWNTREND: BOS pull back at %s, new key low at %s", self._time_frame, candle.timestamp, self._key_low)
 
                 # if price hasnt pulled back since getting into ChOC, check for pull back
                 if self.choc and not self._in_choc_pull_back:
@@ -431,7 +456,7 @@ class PrimarySegment(BaseSegment):
                         self._key_high_candles.append(self._last_high_candle)
                         self._last_low = candle.low
                         self._last_low_candle = candle.timestamp
-                        logger.info("INTERNAL DOWNTREND: ChOC pull back at %s, higher high = %s", candle.timestamp, self._key_high)
+                        logger.info("%s DOWNTREND: ChOC pull back at %s, higher high = %s", self._time_frame, candle.timestamp, self._key_high)
 
                 # check for BOS and ChOC in that order
                 if candle.close < self._key_low and self._in_pull_back  and candle.dir == Constants.DIRECTION.DOWN:
@@ -455,7 +480,7 @@ class PrimarySegment(BaseSegment):
                     
                     self._last_high = None
                     self._last_high_candle = None
-                    logger.info("INTERNAL DOWNTREND: BOS at %s, lower high = %s", candle.timestamp, self._key_high)
+                    logger.info("%s DOWNTREND: BOS at %s, lower high = %s", self._time_frame, candle.timestamp, self._key_high)
 
                 elif candle.close > self._key_high:
                     # ChOC or ChOC confirm
@@ -464,7 +489,7 @@ class PrimarySegment(BaseSegment):
                         self._last_high = candle.high
                         self._last_high_candle = candle.timestamp
                         self._choc_candles.append(candle.timestamp)
-                        logger.info("INTERNAL DOWNTREND: ChOC at %s", candle.timestamp)
+                        logger.info("%s DOWNTREND: ChOC at %s", self._time_frame, candle.timestamp)
                     elif self._choc and self._in_choc_pull_back:
                         # this condition satisfies choc confirmation
                         self._choc_confirmed = True
@@ -474,354 +499,9 @@ class PrimarySegment(BaseSegment):
                         self._last_high = candle.high
                         self._last_high_candle = candle.timestamp
                         self._choc_confirm_candle = candle.timestamp
-                        logger.info("INTERNAL DOWNTREND: ChOC confirmation at %s", candle.timestamp)            
+                        logger.info("%s DOWNTREND: ChOC confirmation at %s", self._time_frame, candle.timestamp)            
 
         self.set_last_high_low(candle)
-
-"""
-A secondary segment contains a set of primary segments that are a part of a secondary structure an 'uptrend' or 'downtrend'
-A new segment starts after a confirmed ChOC
-"""
-class SecondarySegment(BaseSegment):
-    def __init__(self,
-                 dir: Constants.DIRECTION = Constants.DIRECTION.UNDETERMINED,
-                 key_low: float = None,
-                 key_high: float = None,
-                 last_low: float = None,
-                 last_high: float = None) -> None:
-        super().__init__(dir=dir, key_low=key_low, key_high=key_high, last_low=last_low, last_high=last_high)
-        # uninitialzed instance variables
-        self._prim_seg_ids: List[str] = []   # array of primary segment ids for primary segments
-        self._highest_segment: str = None
-        self._lowest_segment: str = None
-
-        logger.debug("New Secondary segment: dir= %s", self._dir)
-
-    # set last highs and lows of the structure
-    def set_last_high_low(self, segment: PrimarySegment) -> None:
-        if not (self._dir == Constants.DIRECTION.DOWN and self._in_bos):
-            if self._last_high is None:
-                self._last_high = segment.segment_high
-            elif self._last_high < segment.segment_high:
-                self._last_high = segment.segment_high
-
-        if not (self._dir == Constants.DIRECTION.UP and self._in_bos):
-            if self._last_low is None:
-                self._last_low = segment.segment_low
-            elif self._last_low > segment.segment_low:
-                self._last_low = segment.segment_low
-
-
-    # update the lowest and highest levels
-    def update_segment_high_low(self, segment: PrimarySegment):
-        if self._segment_high is None:
-            self._segment_high = segment.segment_high
-            self._highest_segment = segment.seg_id
-        elif self.segment_high < segment.segment_high:
-            self._segment_high = segment.segment_high
-            self._highest_segment = segment.seg_id
-
-        if self._segment_low is None:
-            self._segment_low = segment.segment_low
-            self._lowest_segment = segment.seg_id
-        elif self._segment_low > segment.segment_low:
-            self._segment_low = segment.segment_low
-            self._lowest_segment = segment.seg_id
-
-
-    def add_segment(self, segment: PrimarySegment) -> None:
-        # Add the new segment
-        self._prim_seg_ids.append(segment.seg_id)
-
-        self.update_segment_high_low(segment)
-
-        match self._dir:
-            case Constants.DIRECTION.UNDETERMINED:
-                # if first segment and dir is not yet set - set all parameter according to first candle
-                self._dir = segment.dir
-                self._key_high = segment.segment_high
-                self._key_low = segment.segment_low
-                self._in_bos = True
-                self.set_last_high_low(segment)
-                return
-            
-            case Constants.DIRECTION.UP:
-                # if price hasnt pulled back since last BOS, check for pull back
-                if not self._in_pull_back and self._in_bos:
-                    if segment.dir == Constants.DIRECTION.DOWN:
-                        # if candle is bearish, set _in_pull_back to true
-                        self._in_pull_back = True
-                        self._in_bos = False
-                        self._key_high = self._last_high
-                        logger.info("EXTERNAL UPTREND: BOS PULL BACK")
-
-                # if price hasnt pulled back since getting into ChOC, check for pull back
-                if self.choc and not self._in_choc_pull_back:
-                    if segment.dir == Constants.DIRECTION.UP:
-                        # if candle is bearish, set _in_pull_back to true
-                        self._in_choc_pull_back = True
-                        self._key_low = self._last_low
-                        self._last_high = segment.segment_high
-                        logger.info("EXTERNAL UPTREND: CHOC PULL BACK")
-
-
-                # check for BOS and ChOC in that order
-                if segment.segment_high > self._key_high and self._in_pull_back and segment.dir == Constants.DIRECTION.UP:
-                    # BOS
-                    self._bos_num = self._bos_num + 1
-                    self._in_pull_back = False
-                    self._in_choc_pull_back = False
-                    self._choc = False
-                    self._in_bos = True
-                    logger.info("EXTERNAL UPTREND: BOS")
-
-                    # update last low and set key low
-                    if self._last_low is None or segment.segment_low < self._last_low:
-                        self._key_low = segment.segment_low                        
-                    else:
-                        self._key_low = self._last_low
-
-                    self._last_low = None
-                    
-                elif segment.segment_low < self._key_low:
-                    # ChOC or ChOC confirm
-                    if not self._choc:
-                        self._choc = True
-                        self._last_low = segment.segment_low
-                        logger.info("EXTERNAL UPTREND: CHOC")
-
-                    elif self._choc and self._in_choc_pull_back:
-                        # this condition satisfies choc confirmation
-                        self._choc_confirmed = True
-                        self._key_high = self._last_high
-                        self._last_low = segment.segment_low
-                        logger.info("EXTERNAL UPTREND: CHOC CONFIRMED")
-
-
-            case Constants.DIRECTION.DOWN:
-                # if price hasnt pulled back since last BOS, check for pull back
-                if not self._in_pull_back and self._in_bos:
-                    if segment.dir == Constants.DIRECTION.UP:
-                        # if candle is bearish, set _in_pull_back to true
-                        self._in_pull_back = True
-                        self._in_bos = False
-                        self._key_low = self._last_low
-                        logger.info("EXTERNAL DOWNTREND: BOS PULL BACK")
-
-
-                # if price hasnt pulled back since getting into ChOC, check for pull back
-                if self.choc and not self._in_choc_pull_back:
-                    if segment.dir == Constants.DIRECTION.DOWN:
-                        # if candle is bearish, set _in_pull_back to true
-                        self._in_choc_pull_back = True
-                        self._key_high = self._last_high
-                        self._last_low = segment.segment_low
-                        logger.info("EXTERNAL DOWNTREND: CHOC PULL BACK")
-
-                # check for BOS and ChOC in that order
-                if segment.segment_low < self._key_low and self._in_pull_back and segment.dir == Constants.DIRECTION.DOWN:
-                    # BOS
-                    self._bos_num = self._bos_num + 1
-                    self._in_pull_back = False
-                    self._in_choc_pull_back = False
-                    self._choc = False
-                    self._in_bos = True
-                    logger.info("EXTERNAL DOWNTREND: BOS")
-                    
-                    # update last high and set key high
-                    if self._last_high is None or segment.segment_high > self._last_high:
-                        self._key_high = segment.segment_high
-                        
-                    else:
-                        self._key_high = self._last_high
-                        self._last_high = segment.segment_high
-
-                    self._last_high = None
-                    
-                elif segment.segment_high > self._key_high:
-                    # ChOC or ChOC confirm
-                    if not self._choc:
-                        self._choc = True
-                        self._last_high = segment.segment_high
-                        logger.info("EXTERNAL DOWNTREND: CHOC")
-
-                    elif self._choc and self._in_choc_pull_back:
-                        # this condition satisfies choc confirmation
-                        self._choc_confirmed = True
-                        self._key_low = self._last_low
-                        self._last_high = segment.segment_high
-                        logger.info("EXTERNAL DOWNTREND: CHOC CONFIRMED")
-
-        self.set_last_high_low(segment)
-
-"""
-A secondary segment contains a set of primary segments that are a part of a secondary structure an 'uptrend' or 'downtrend'
-A new segment starts after a confirmed ChOC
-"""
-class TertiarySegment(BaseSegment):
-    def __init__(self,
-                 dir: Constants.DIRECTION = Constants.DIRECTION.UNDETERMINED,
-                 key_low: float = None,
-                 key_high: float = None,
-                 last_low: float = None,
-                 last_high: float = None) -> None:
-        super().__init__(dir=dir, key_low=key_low, key_high=key_high, last_low=last_low, last_high=last_high)
-        # uninitialzed instance variables
-        self._sec_segments: List[SecondarySegment] = []   # array of primary segment ids segments
-
-        logger.info("New Tertiary Segment: dir = %s", self._dir)
-
-    # get segments
-    @property
-    def segments(self) -> List[SecondarySegment]:
-        return self._sec_segments
-
-    # update segment price range
-    def update_segment_high_low(self, segment: SecondarySegment):
-        if self._segment_high is None:
-            self._segment_high = segment.segment_high
-        elif self.segment_high < segment.segment_high:
-            self._segment_high = segment.segment_high
-
-        if self._segment_low is None:
-            self._segment_low = segment.segment_low
-        elif self._segment_low > segment.segment_low:
-            self._segment_low = segment.segment_low
-
-
-    # set last highs and lows of the structure
-    def set_last_high_low(self, segment: PrimarySegment) -> None:
-        if not (self._dir == Constants.DIRECTION.DOWN and self._in_bos):
-            if self._last_high is None:
-                self._last_high = segment.segment_high
-            elif self._last_high < segment.segment_high:
-                self._last_high = segment.segment_high
-
-        if not (self._dir == Constants.DIRECTION.UP and self._in_bos):
-            if self._last_low is None:
-                self._last_low = segment.segment_low
-            elif self._last_low > segment.segment_low:
-                self._last_low = segment.segment_low
-
-    
-    def add_segment(self, segment: SecondarySegment) -> None:
-        # Add the new segment
-        self._sec_segments.append(segment)
-
-        self.update_segment_high_low(segment)
-
-        match self._dir:
-            case Constants.DIRECTION.UNDETERMINED:
-                # if first segment and dir is not yet set - set all parameter according to first candle
-                self._dir = segment.dir
-                self._key_high = segment.segment_high
-                self._key_low = segment.segment_low
-                self._in_bos = True
-                self.set_last_high_low(segment)
-                return
-            
-            case Constants.DIRECTION.UP:
-                # if price hasnt pulled back since last BOS, check for pull back
-                if not self._in_pull_back:
-                    if segment.dir == Constants.DIRECTION.DOWN:
-                        # if candle is bearish, set _in_pull_back to true
-                        self._in_pull_back = True
-                        self._in_bos = False
-                        self._key_high = self._last_high
-                        logger.info("MAJOR UPTREND: BOS PULL BACK")
-
-                # if price hasnt pulled back since getting into ChOC, check for pull back
-                if self.choc and not self._in_choc_pull_back:
-                    if segment.dir == Constants.DIRECTION.UP:
-                        # if candle is bearish, set _in_pull_back to true
-                        self._in_choc_pull_back = True
-                        self._key_low = self._last_low
-                        self._last_high = segment.segment_high
-                        logger.info("MAJOR UPTREND: CHOC PULL BACK")
-
-                # check for BOS and ChOC in that order
-                if segment.segment_high > self._key_high and self._in_pull_back and segment.dir == Constants.DIRECTION.UP:
-                    # BOS
-                    self._bos_num = self._bos_num + 1
-                    self._in_pull_back = False
-                    self._in_choc_pull_back = False
-                    self._choc = False
-                    self._in_bos = True
-                    logger.info("MAJOR UPTREND: BOS")
-
-                    # update last low and set key low
-                    if segment.segment_low < self._last_low:
-                        self._key_low = segment.segment_low
-                    else:
-                        self._key_low = self._last_low
-
-                    self._last_low = None
-                    
-                elif segment.segment_low < self._key_low:
-                    # ChOC or ChOC confirm
-                    if not self._choc:
-                        self._choc = True
-                        self._last_low = segment.segment_low
-                        logger.info("MAJOR UPTREND: CHOC")
-                    elif self._choc and self._in_choc_pull_back:
-                        # this condition satisfies choc confirmation
-                        self._choc_confirmed = True
-                        self._key_high = self._last_high
-                        self._last_low = segment.segment_low
-                        logger.info("MAJOR UPTREND: CHOC CONFIRM")
-
-
-            case Constants.DIRECTION.DOWN:
-                # if price hasnt pulled back since last BOS, check for pull back
-                if not self._in_pull_back:
-                    if segment.dir == Constants.DIRECTION.UP:
-                        # if candle is bearish, set _in_pull_back to true
-                        self._in_pull_back = True
-                        self._in_bos = False
-                        self._key_low = self._last_low
-                        logger.info("MAJOR DOWNTREND: BOS PULL BACK")
-
-                # if price hasnt pulled back since getting into ChOC, check for pull back
-                if self.choc and not self._in_choc_pull_back:
-                    if segment.dir == Constants.DIRECTION.DOWN:
-                        # if candle is bearish, set _in_pull_back to true
-                        self._in_choc_pull_back = True
-                        self._key_high = self._last_high
-                        self._last_low = segment.segment_low
-                        logger.info("MAJOR DOWNTREND: CHOC PULL BACK")
-
-                # check for BOS and ChOC in that order
-                if segment.segment_low < self._key_low and self._in_pull_back and segment.dir == Constants.DIRECTION.DOWN:
-                    # BOS
-                    self._bos_num = self._bos_num + 1
-                    self._in_pull_back = False
-                    self._in_choc_pull_back = False
-                    self._choc = False
-                    self._in_bos = True
-                    logger.info("MAJOR DOWNTREND: BOS")
-                    
-                    # update last high and set key high
-                    if segment.segment_high > self._last_high:
-                        self._key_high = segment.segment_high
-                    else:
-                        self._key_high = self._last_high
-
-                    self._last_high = None
-                    
-                elif segment.segment_high > self._key_high:
-                    # ChOC or ChOC confirm
-                    if not self._choc:
-                        self._choc = True
-                        self._last_high = segment.segment_high
-                        logger.info("MAJOR DOWNTREND: CHOC")
-                    elif self._choc and self._in_choc_pull_back:
-                        # this condition satisfies choc confirmation
-                        self._choc_confirmed = True
-                        self._key_low = self._last_low
-                        self._last_high = segment.segment_high
-                        logger.info("MAJOR DOWNTREND: CHOC CONFIRMED")
-
-        self.set_last_high_low(segment)
 
 
 """
@@ -928,8 +608,11 @@ class SR_Structure:
             self._retests += 1
 
 
-    def __init__(self, sr_data: pd.DataFrame, mode: str) -> None:
-        self._segments: List[PrimarySegment] = [PrimarySegment(str(uuid4()))]
+    def __init__(self, sr_data, mode: str) -> None:
+        self._segments = {
+            Constants.SR_DATA_LEVEL.LOW.value: [PrimarySegment(str(uuid4()), "T1")],
+            Constants.SR_DATA_LEVEL.HIGH.value: [PrimarySegment(str(uuid4()), "T2")]
+        }
         self._raw_sr_zones: List[SR_Structure.RSR_Zone] = []
         self._aggr_sr_zones: List[SR_Structure.ASR_Zone] = []
         self._mode = mode
@@ -937,27 +620,28 @@ class SR_Structure:
 
 
     @property
-    def sr_data(self) -> pd.DataFrame:
+    def sr_data(self):
         return self.sr_data
     
     @sr_data.setter
-    def sr_data(self, value: pd.DataFrame):
+    def sr_data(self, value):
         self._sr_data = value
 
     # adds candle to the structure and calculates side effects
-    def process_candle(self, candle):
+    def process_candle(self, level, candle):
         # start a new segment if segment closed by confirmed ChOC
-        if self._segments[-1].choc_confirmed:
+        if self._segments[level][-1].choc_confirmed:
             logger.debug("Appending new primary segment to SR structure")
             self._segments.append(
                 PrimarySegment(str(uuid4()),
-                self._segments[-1].opp_dir,
-                self._segments[-1].key_low,
-                self._segments[-1].key_high,
-                self._segments[-1].last_low,
-                self._segments[-1].last_high))
+                self._segments[level][-1].time_frame,
+                self._segments[level][-1].opp_dir,
+                self._segments[level][-1].key_low,
+                self._segments[level][-1].key_high,
+                self._segments[level][-1].last_low,
+                self._segments[level][-1].last_high))
         # get last segment
-        activ_ps: PrimarySegment = self._segments[-1]
+        activ_ps: PrimarySegment = self._segments[level][-1]
         # add current candle to segment
         activ_ps.add_candle(candle)
 
@@ -969,44 +653,47 @@ class SR_Structure:
 
         self._raw_sr_zones.clear()
 
-        # check segments for SR levels
-        # slice the array to exclude the first segment since it might not have a well formed character
-        for segment in self._segments[1:]:
+        levels = [Constants.SR_DATA_LEVEL.LOW.value, Constants.SR_DATA_LEVEL.HIGH.value]
 
-            zone = None
+        for level in levels:
+            # check segments for SR levels
+            # slice the array to exclude the first segment since it might not have a well formed character
+            for segment in self._segments[level][1:]:
 
-            if segment.dir == Constants.DIRECTION.UP:
-                # get a resistance zone
-                candle_data = self._sr_data.loc[segment.highest_candle]
+                zone = None
 
-                if candle_data['open'] > candle_data['close']:
-                    # bearish candle
-                    body = (candle_data["close"], candle_data["open"])
-                    wick = (candle_data["open"], candle_data["high"])
-                else:
-                    # bullish candle
-                    body = (candle_data["open"], candle_data["close"])
-                    wick = (candle_data["close"], candle_data["high"])
+                if segment.dir == Constants.DIRECTION.UP:
+                    # get a resistance zone
+                    candle_data = self._sr_data.loc[segment.highest_candle]
 
-                zone = SR_Structure.RSR_Zone(Constants.ZONE_TYPE.RESISTANCE, segment.highest_candle, (candle_data['low'], candle_data['high']), body, wick)
+                    if candle_data['open'] > candle_data['close']:
+                        # bearish candle
+                        body = (candle_data["close"], candle_data["open"])
+                        wick = (candle_data["open"], candle_data["high"])
+                    else:
+                        # bullish candle
+                        body = (candle_data["open"], candle_data["close"])
+                        wick = (candle_data["close"], candle_data["high"])
 
-            elif segment.dir == Constants.DIRECTION.DOWN:
-                # get a resistance zone
-                candle_data = self._sr_data.loc[segment.lowest_candle]
+                    zone = SR_Structure.RSR_Zone(Constants.ZONE_TYPE.RESISTANCE, segment.highest_candle, (candle_data['low'], candle_data['high']), body, wick)
 
-                if candle_data['open'] > candle_data['close']:
-                    # bearish candle
-                    body = (candle_data["close"], candle_data["open"])
-                    wick = (candle_data["low"], candle_data["close"])
-                else:
-                    # bullish candle
-                    body = (candle_data["open"], candle_data["close"])
-                    wick = (candle_data["low"], candle_data["open"])
+                elif segment.dir == Constants.DIRECTION.DOWN:
+                    # get a resistance zone
+                    candle_data = self._sr_data.loc[segment.lowest_candle]
 
-                zone = SR_Structure.RSR_Zone(Constants.ZONE_TYPE.SUPPORT, segment.lowest_candle, (candle_data['low'], candle_data['high']), body, wick)
+                    if candle_data['open'] > candle_data['close']:
+                        # bearish candle
+                        body = (candle_data["close"], candle_data["open"])
+                        wick = (candle_data["low"], candle_data["close"])
+                    else:
+                        # bullish candle
+                        body = (candle_data["open"], candle_data["close"])
+                        wick = (candle_data["low"], candle_data["open"])
 
-            if zone is not None:
-                self._raw_sr_zones.append(zone)
+                    zone = SR_Structure.RSR_Zone(Constants.ZONE_TYPE.SUPPORT, segment.lowest_candle, (candle_data['low'], candle_data['high']), body, wick)
+
+                if zone is not None:
+                    self._raw_sr_zones.append(zone)
 
     
     """
@@ -1165,28 +852,45 @@ class SR_Structure:
 
 
 
-
 """
 The Kraken
 """
 class Kraken:
-    def __init__(self) -> None:
+    def __init__(self, pst_timeframes = None) -> None:
+
+        if pst_timeframes is None:
+            pst_timeframes = ["LOW T-FRAME", "MID T-FRAME", "HIGH T-FRAME"]
         
-        # uninitialzed instance variables
-        self._prim_segments: List[PrimarySegment] = [PrimarySegment(str(uuid4()))]   # list of all primary segments
-        self._segments: List[TertiarySegment] = [TertiarySegment(),]                 # array of tertiary segments
-        self._active_sec_segment: SecondarySegment = SecondarySegment()
-        self._sr_structure = None
-        self._pst_data: pd.DataFrame = None
-        self._sr_data: pd.DataFrame = None
+        # structure segments made up of candles
+        self._segments = {
+            Constants.PST_DATA_LEVEL.LOW.value : [PrimarySegment(str(uuid4()), pst_timeframes[0])],   # list of all segments of low time frame
+            Constants.PST_DATA_LEVEL.MID.value : [PrimarySegment(str(uuid4()), pst_timeframes[1])],   # list of all segments of middle time frame
+            Constants.PST_DATA_LEVEL.HIGH.value : [PrimarySegment(str(uuid4()), pst_timeframes[2])]  # list of all segments of high time frame
+        }
+
+        # dataframes containing primary candle data 
+        self._pst_data = {
+            Constants.PST_DATA_LEVEL.LOW.value : None,
+            Constants.PST_DATA_LEVEL.MID.value : None,
+            Constants.PST_DATA_LEVEL.HIGH.value : None
+        }
 
     @property
     def pst_data(self):
         return self._pst_data
+    
+    @property
+    def sr_data(self):
+        return self._sr_data
 
-    def add_candle(self, time: datetime, open: float, high: float, low: float, close: float):
+    """
+    adds new candle to segment
+    """
+    def add_candle(self, level: str, time: datetime, open: float, high: float, low: float, close: float):
+
         # add candle to dataframe
-        self._pst_data.loc[time] = {
+
+        self._pst_data[level].loc[time] = {
             "open": open,
             "high": high,
             "low": low,
@@ -1194,59 +898,35 @@ class Kraken:
         }
 
         # process candle
-        self.process_candle(Candle(time, open, high, low, close))
+        self.process_candle(level, Candle(time, open, high, low, close))
 
-
-    def process_candle(self, candle: Candle):
+    """
+    Add candle to segment and process side effects. The level parameter selects the appropriate structure
+    level to add candle to
+    """
+    def process_candle(self, level: str, candle: Candle):
         logger.debug("Processing candle: %s", candle.timestamp)
 
         # start a new segment if segment closed by confirmed ChOC
-        if self._prim_segments[-1].choc_confirmed:
-            logger.debug("Appending new primary segment")
-            self._prim_segments.append(
+        if self._segments[level][-1].choc_confirmed:
+            logger.debug("Appending new primary segment: Level {}", level)
+            self._segments[level].append(
                 PrimarySegment(str(uuid4()),
-                self._prim_segments[-1].opp_dir,
-                self._prim_segments[-1].key_low,
-                self._prim_segments[-1].key_high,
-                self._prim_segments[-1].last_low,
-                self._prim_segments[-1].last_high,
-                self._prim_segments[-1].key_low_candle,
-                self._prim_segments[-1].key_high_candle,
-                self._prim_segments[-1].last_low_candle,
-                self._prim_segments[-1].last_high_candle))
+                self._segments[level][-1].time_frame,
+                self._segments[level][-1].opp_dir,
+                self._segments[level][-1].key_low,
+                self._segments[level][-1].key_high,
+                self._segments[level][-1].last_low,
+                self._segments[level][-1].last_high,
+                self._segments[level][-1].key_low_candle,
+                self._segments[level][-1].key_high_candle,
+                self._segments[level][-1].last_low_candle,
+                self._segments[level][-1].last_high_candle))
+        
         # get last segment
-        activ_ps: PrimarySegment = self._prim_segments[-1]
+        activ_ps: PrimarySegment = self._segments[level][-1]
         # add current candle to segment
         activ_ps.add_candle(candle)
-
-        # check if confirmed ChOC
-        if activ_ps.choc_confirmed:
-            # add this segment to secondary segment
-            # first check if secondary segment not closed
-            if self._active_sec_segment.choc_confirmed:
-                self._active_sec_segment = SecondarySegment(
-                    self._active_sec_segment.opp_dir,
-                    self._active_sec_segment.key_low,
-                    self._active_sec_segment.key_high,
-                    self._active_sec_segment.last_low,
-                    self._active_sec_segment.last_high
-                )
-
-            self._active_sec_segment.add_segment(activ_ps)
-
-            # check if secondary got confirmed
-            if self._active_sec_segment.choc_confirmed:
-                # check if tertiary segment confirmed
-                if self._segments[-1].choc_confirmed:
-                    self._segments.append(TertiarySegment(
-                        self._segments[-1].opp_dir,
-                        self._segments[-1].key_low,
-                        self._segments[-1].key_high,
-                        self._segments[-1].last_low,
-                        self._segments[-1].last_high
-                    ))
-
-                self._segments[-1].add_segment(self._active_sec_segment)
 
 
     """
@@ -1256,22 +936,27 @@ class Kraken:
 
         logger.info("Compiling signal data...")
 
-        # get the current primary segment
-        ps = self._prim_segments[-1]
-        prev_ps = self._prim_segments[-2]
+        levels = [
+            Constants.PST_DATA_LEVEL.LOW.value,
+            Constants.PST_DATA_LEVEL.MID.value,
+            Constants.PST_DATA_LEVEL.HIGH.value
+        ]
 
-        ss = self._active_sec_segment
+        data = {}
 
-        # get sr zones if available
-        sr_zones = self._sr_structure.get_zones() if self._sr_structure is not None else None
+        for level in levels:
+            # get the current primary segment for the level
+            ps = self._segments[level][-1]
+            prev_ps = self._segments[level][-2]
 
-        return {
-            "primary_struct": {
+            _data = {
                 "seg_id": ps.seg_id,
                 "seg_dir": ps.dir,
                 "candle": ps.candles[-1],
                 "candle_dir": self.get_candle_dir(ps.candles[-1]),
                 "bos_num": ps.bos_num,
+                "in_bos": ps.in_bos,
+                "in_pull_back": ps.in_pull_back,
                 "highs": ps.key_high_candles,
                 "lows": ps.key_low_candles,
                 "choc": ps.choc,
@@ -1292,98 +977,118 @@ class Kraken:
                         "lowest": prev_ps.segment_low
                     }
                 }
-            },
-            "secondary_struct": {
-                "dir": ss.dir,
-                "range": {
-                    "highest": ss.segment_high,
-                    "lowest": ss.segment_low
-                },
-                "bos_num": ss.bos_num,
-            },
-            "tertiary_struct": {
-                "dir": self._segments[-1].dir
-            },
-            "sr_zones": sr_zones
-        }
-    
+            }
 
-    """
-    This function generates information required to mark out points of interest on graphs
-    """
-    def get_annotation(self, candle_length: int = 100) -> dict:
-        logger.info("Compiling annotation data...")
+            data["pst_" + level] = _data
 
-        # set number of p-segments to retrieve
-        pss = 0
-        candles = candle_length
-
-        while True:
-            pss += 1
-            candles = candles - len(self._prim_segments[-pss].candles)
-            if candles <= 0 or pss >= len(self._prim_segments):
-                break
-
-        primary = {
-            "bos": [],
-            "key_high": None,
-            "key_low": None,
-            "choc": [],
-            "choc_confirm": [],
-            "min": None,
-            "max": None
-        }
-
-        # loop throgh p-segments from the last in reverse
-        for ps in self._prim_segments[-1:-pss-1:-1]:
-            primary["bos"].extend(ps.bos_candles)
-            primary["choc"].extend(ps.choc_candles)
-            primary["choc_confirm"].append(ps.choc_confirm_candle)
-
-            if primary["min"] is None:
-                primary["min"] = ps.segment_low
-            elif primary["min"] > ps.segment_low:
-                primary["min"] = ps.segment_low
-
-            if primary["max"] is None:
-                primary["max"] = ps.segment_high
-            elif primary["max"] < ps.segment_high:
-                primary["max"] = ps.segment_high
-
-
-        # get some info from current p-segment
-        activ_ps = self._prim_segments[-1]
-        primary["key_high"] = activ_ps.key_high
-        primary["key_low"] = activ_ps.key_low
 
         # get sr zones if available
         sr_zones = self._sr_structure.get_zones() if self._sr_structure is not None else None
 
-        return {
-            "primary": primary,
-            "sr_zones": sr_zones
-        }
+        data["sr_zones"] = sr_zones
+
+        return data
+
+    """
+    This function generates information required to mark out points of interest on graphs
+    """
+    def get_annotation(self, ratios, candle_length: int = 100) -> dict:
+        logger.info("Compiling annotation data...")
+
+        levels = [
+            Constants.PST_DATA_LEVEL.LOW.value,
+            Constants.PST_DATA_LEVEL.MID.value,
+            Constants.PST_DATA_LEVEL.HIGH.value
+        ]
+
+        data = {}
+
+        for level in levels:
+
+            # set number of p-segments to retrieve
+            pss = 0
+            candles = int(candle_length/ratios[level])
+
+            while True:
+                pss += 1
+                candles = candles - len(self._segments[level][-pss].candles)
+                if candles <= 0 or pss >= len(self.__segments[level]):
+                    break
+
+            _data = {
+                "bos": [],
+                "key_high": None,
+                "key_low": None,
+                "choc": [],
+                "choc_confirm": [],
+                "min": None,
+                "max": None
+            }
+
+            # loop throgh p-segments from the last in reverse
+            for ps in self._segments[level][-1:-pss-1:-1]:
+                _data["bos"].extend(ps.bos_candles)
+                _data["choc"].extend(ps.choc_candles)
+                _data["choc_confirm"].append(ps.choc_confirm_candle)
+
+                if _data["min"] is None:
+                    _data["min"] = ps.segment_low
+                elif _data["min"] > ps.segment_low:
+                    _data["min"] = ps.segment_low
+
+                if _data["max"] is None:
+                    _data["max"] = ps.segment_high
+                elif _data["max"] < ps.segment_high:
+                    _data["max"] = ps.segment_high
+
+
+            # get some info from current p-segment
+            activ_ps = self._segments[level][-1]
+            _data["key_high"] = activ_ps.key_high
+            _data["key_low"] = activ_ps.key_low
+            _data["timeframe"] = activ_ps.time_frame
+
+            data["pst_" + level] = _data
+
+        # get sr zones if available
+        sr_zones = self._sr_structure.get_zones() if self._sr_structure is not None else None
+
+        data["sr_zones"] = sr_zones
+
+        return data
 
     """
     Initialize the Kraken with a lookback window for pst and sr data
     """   
-    def initialize(self, pst_data: pd.DataFrame, sr_data: pd.DataFrame = None, mode: Constants.ZONING_MODE = None):
+    def initialize(self,
+                   pst_data,
+                   sr_data,
+                   sr_timeframes,
+                   mode: Constants.ZONING_MODE = None):
 
         logger.info("Initializing the Kraken...")
 
         logger.info("Processing primary structure data and constructing internal representation.")
         
-        self._pst_data: pd.DataFrame = pst_data.copy()        # Pandas DataFrame with candlestick data
+        # copy pst dataframes
+        levels = [
+            Constants.PST_DATA_LEVEL.LOW.value,
+            Constants.PST_DATA_LEVEL.MID.value,
+            Constants.PST_DATA_LEVEL.HIGH.value
+        ]
 
-        # iterate through candlestick data
+        for level in levels:
+            self._pst_data[level]: pd.DataFrame = pst_data[level].copy()        # Pandas DataFrame with candlestick data
 
-        for index, row in self._pst_data.iterrows():
+        # iterate through candlestick data per level
+        for level in levels:
+            for index, row in self._pst_data[level].iterrows():
 
-            # create candle object
-            candle = Candle(index, row['open'], row['high'], row['low'], row['close'])
+                # create candle object
+                candle = Candle(index, row['open'], row['high'], row['low'], row['close'])
 
-            # add candle
-            self.process_candle(candle)
+                # add candle
+                self.process_candle(level, candle)
 
         if sr_data is not None:
             self.initialize_new_zones(sr_data, mode)
@@ -1391,18 +1096,24 @@ class Kraken:
     def initialize_new_zones(self, sr_data: pd.DataFrame, mode: Constants.ZONING_MODE = None):
         logger.info("Processing support and resistance levels from higher timeframe data.")
 
-        self._sr_data = sr_data.copy()
+        levels = [Constants.SR_DATA_LEVEL.LOW.value, Constants.SR_DATA_LEVEL.HIGH.value]
+
+        neo_sr_data = {}
+        for level in levels:
+            neo_sr_data[level] = sr_data[level].copy()
+        
         if self._sr_structure is not None:
-            self._sr_structure.sr_data = self._sr_data
+            self._sr_structure.sr_data = neo_sr_data
         else:
-            self._sr_structure = SR_Structure(self._sr_data, mode)
+            self._sr_structure = SR_Structure(neo_sr_data, mode)
 
-        for index, row in self._sr_data.iterrows():
-            # create candle object
-            candle = Candle(index, row['open'], row['high'], row['low'], row['close'])
+        for level in levels:
+            for index, row in self._sr_structure.sr_data[level].iterrows():
+                # create candle object
+                candle = Candle(index, row['open'], row['high'], row['low'], row['close'])
 
-            # add candle to SR Structure
-            self._sr_structure.process_candle(candle)
+                # add candle to SR Structure
+                self._sr_structure.process_candle(level, candle)
 
         # compile zones from the processed candles
         self._sr_structure.compile_zones()

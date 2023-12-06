@@ -28,7 +28,7 @@ app.layout = html.Div(
         html.H1(children='Kraken Strategy Simulation'),
         html.P(id='desc', children='Welcome to the Kraken visualization for testing'),
         html.H3(id='title', children='Entry time frame'),
-        dcc.Interval(id='interval-comp', interval=1000, n_intervals=0),
+        dcc.Interval(id='interval-comp', interval=500, n_intervals=0),
         dcc.Graph(id="main-chart")
     ]
 )
@@ -114,10 +114,10 @@ def update_progress(n_intervals):
                 # now it depends on direction of trade vs current price
                 if trade["type"] == "BUY" and trade["price"] < trade["close"]:
                     # a closed buy trade in profit will have tp box to close price
-                    tpboxbound = pst_df.iloc[-1]["close"]
+                    tpboxbound = trade["close"]
                 elif trade["type"] == "SELL" and trade["price"] > trade["close"]:
                     # a closed sell trade in profit will have tp box to close price
-                    tpboxbound = pst_df.iloc[-1]["close"]
+                    tpboxbound = trade["close"]
                 else:
                     tpboxbound = None
             elif trade["tp"] is not None:
