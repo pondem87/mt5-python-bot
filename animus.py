@@ -47,7 +47,7 @@ class DATA_TYPE:
 """
 This class implements strategies based on structural data from the Kraken.
 """
-class Advisor():
+class Advisor:
     def __init__(self, strategy: str, options) -> None:
         self._strategy: str = strategy
         self._options = options
@@ -74,7 +74,7 @@ class Advisor():
             case "SIMPLE_TREND":
                 # trading simple trends
                 # if secondary structure trend is UP we are looking to buy when primary structure turns to the up side 
-                if signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["seg_dir"] == Constants.DIRECTION.UP and signals["pst_" + Constants.PST_DATA_LEVEL.HIGH.value]["seg_dir"] == Constants.DIRECTION.UP:
+                if signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["seg_dir"] == Constants.DIRECTION.UP: # and signals["pst_" + Constants.PST_DATA_LEVEL.HIGH.value]["seg_dir"] == Constants.DIRECTION.UP:
 
                     if self._options["entry"] == "CHOC_CONFIRMED":
                         if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc_confirmed"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN: # down changing to UP
@@ -98,7 +98,7 @@ class Advisor():
                     else:
                         return None
                     
-                elif signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["seg_dir"] == Constants.DIRECTION.DOWN and signals["pst_" + Constants.PST_DATA_LEVEL.HIGH.value]["seg_dir"] == Constants.DIRECTION.DOWN:
+                elif signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["seg_dir"] == Constants.DIRECTION.DOWN: # and signals["pst_" + Constants.PST_DATA_LEVEL.HIGH.value]["seg_dir"] == Constants.DIRECTION.DOWN:
                     
                     if self._options["entry"] == "CHOC_CONFIRMED":
                         if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc_confirmed"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.UP: # down changing to DOWN
@@ -145,61 +145,57 @@ class Advisor():
             case "SIMPLE_TREND":
                 logger.debug("matched SIMPLE_TREND...")
                 # trading simple trends
-                # if secondary structure trend is UP we are looking to buy when primary structure turns to the up side 
-                if signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["seg_dir"] == Constants.DIRECTION.UP:
+                # if secondary structure trend is UP we are looking to buy when primary structure turns to the up side
 
-                    if self._options["exit"] == "CHOC_CONFIRMED":
-                        if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc_confirmed"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.UP: # UP changing to DOWN
-                            # close_positions
+
+                if self._options["exit"] == "CHOC_CONFIRMED":
+                    if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc_confirmed"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.UP: # UP changing to DOWN
+                        # close_positions
                             
-                            result["actions"].append(
-                                    {
-                                        "action": "CLOSE",
-                                        "position_type": POSITION_TYPE.BUY.value,
-                                        "instr": self._options["instr"]
-                                    })
+                        result["actions"].append(
+                            {
+                                "action": "CLOSE",
+                                "position_type": POSITION_TYPE.BUY.value,
+                                "instr": self._options["instr"]
+                            })
                         
-                    elif self._options["exit"] == "CHOC":
-                        if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.UP: # UP changing to DOWN
-                            # close_positions
-                            result["actions"].append(
-                                    {
-                                        "action": "CLOSE",
-                                        "position_type": POSITION_TYPE.BUY.value,
-                                        "instr": self._options["instr"]
-                                    })
+                    elif signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc_confirmed"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN: # DOWN changing to UP
+                        # close_positions
+                        result["actions"].append(
+                            {
+                                "action": "CLOSE",
+                                "position_type": POSITION_TYPE.SELL.value,
+                                "instr": self._options["instr"]
+                            })
+                        
+                elif self._options["exit"] == "CHOC":
+                    if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.UP: # UP changing to DOWN
+                        # close_positions
+                        result["actions"].append(
+                            {
+                                "action": "CLOSE",
+                                "position_type": POSITION_TYPE.BUY.value,
+                                "instr": self._options["instr"]
+                            })
+                        
+                    if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN: # down changing to DOWN
+                        # close_positions
+                        result["actions"].append(
+                            {
+                                "action": "CLOSE",
+                                "position_type": POSITION_TYPE.SELL.value,
+                                "instr": self._options["instr"]
+                            })
                        
                     
-                if signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["seg_dir"] == Constants.DIRECTION.DOWN:
-                    
-                    if self._options["exit"] == "CHOC_CONFIRMED":
-                        if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc_confirmed"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN: # down changing to DOWN
-                            # close_positions
-                            result["actions"].append(
-                                    {
-                                        "action": "CLOSE",
-                                        "position_type": POSITION_TYPE.SELL.value,
-                                        "instr": self._options["instr"]
-                                    })
-  
-                    elif self._options["exit"] == "CHOC":
-                        if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN: # down changing to DOWN
-                            # close_positions
-                            result["actions"].append(
-                                    {
-                                        "action": "CLOSE",
-                                        "position_type": POSITION_TYPE.SELL.value,
-                                        "instr": self._options["instr"]
-                                    })
-
-                if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["in_bos"]: #and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN:
+                if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["in_bos"]:
 
                     result["actions"].append({
                         "action": "MOVE_SL",
-                        "position_type": POSITION_TYPE.SELL.value if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN else POSITION_TYPE.SELL.value,
+                        "position_type": POSITION_TYPE.SELL.value if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN else POSITION_TYPE.BUY.value,
                         "instr": self._options["instr"],
-                        "new_sl_target": signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["keylevels"]["high"] if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN \
-                            else signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["keylevels"]["low"]
+                        "new_sl_target": signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["high"] if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN \
+                            else signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["low"]
                     })
 
                     self.bos_expire()
@@ -210,8 +206,7 @@ class Advisor():
 
         return result
     
-    def adjust_stop_loss(positions, price, options):
-        pass          
+       
 
     def build_position(self, type: POSITION_TYPE, closing_price: float, sl: float, tp: float, balance: float, signals, options):
 
@@ -321,14 +316,14 @@ class Animus():
     }
     """
     def run_backtest(self, start: str, end: str, strategy: str, options, extras, publish_data_func,
-                      pst_files: List[str], sr_files: List[str] = None, pst_sr_ratios: List[int] = None):
+                      pst_files, sr_files = None, pst_sr_ratio = None):
         
         logger.info("Running backtest: %s on %s from %s to %s...", strategy, options["instr"], start, end)
         print("Running backtest: {} on {} from {} to {}...".format(strategy, options["instr"], start, end))
         
         # load data from files
         # load pst files
-        levels = [Constants.PST_DATA_LEVEL.LOW.value, Constants.PST_DATA_LEVEL.LOW.value, Constants.PST_DATA_LEVEL.LOW.value]
+        levels = [Constants.PST_DATA_LEVEL.LOW.value, Constants.PST_DATA_LEVEL.MID.value, Constants.PST_DATA_LEVEL.HIGH.value]
         for level in levels:
             self._pst_data[level] = pd.read_csv(pst_files[level], index_col="time")
         # check for and load sr file
@@ -337,10 +332,10 @@ class Animus():
             levels = [Constants.SR_DATA_LEVEL.LOW.value, Constants.SR_DATA_LEVEL.HIGH.value]
             for level in levels:
                 self._sr_data[level] = pd.read_csv(sr_files[level], index_col="time")
-            if pst_sr_ratios is None:
+            if pst_sr_ratio is None:
                 raise ValueError ("pst_sr_ratio cannot be null when sr data provided")
             else:
-                self._pst_sr_iloc_ratios = pst_sr_ratios
+                self._pst_sr_iloc_ratio = pst_sr_ratio
 
         self._sim_options = options
 
@@ -387,12 +382,12 @@ class Animus():
             session.commit()
             
             for index, row in self._pst_data[Constants.PST_DATA_LEVEL.LOW.value].iloc[self._pst_iloc:self._pst_last_iloc+1].iterrows():
-                self._pst_iloc = self._pst_data.index.get_loc(index)
+                self._pst_iloc = self._pst_data[Constants.PST_DATA_LEVEL.LOW.value].index.get_loc(index)
                 #print("ROW INDEX IS {}, PST_ILOC IS {}".format(index, self._pst_iloc))
 
                 # step through the candles
                 # add candle to the Kraken
-                levels = [Constants.PST_DATA_LEVEL.LOW.value, Constants.PST_DATA_LEVEL.LOW.value, Constants.PST_DATA_LEVEL.LOW.value]
+                levels = [Constants.PST_DATA_LEVEL.LOW.value, Constants.PST_DATA_LEVEL.MID.value, Constants.PST_DATA_LEVEL.HIGH.value]
                 for level in levels:
                     # add low level candle
                     if level == Constants.PST_DATA_LEVEL.LOW.value:
@@ -401,7 +396,7 @@ class Animus():
                         )
                     elif self._pst_iloc % self._pst_level_ratios[level] == 0:
                         # add higher timeframe candles at intervals
-                        _row = self._sr_data[level].iloc[self._pst_iloc/self._pst_level_ratios[level]]
+                        _row = self._pst_data[level].iloc[int(self._pst_iloc/self._pst_level_ratios[level])]
                         self._kraken.add_candle(
                             level, _row.name, _row["open"], _row["high"], _row["low"], _row["close"]
                         )
@@ -417,7 +412,8 @@ class Animus():
                             "entry_time": pos.entry_time,
                             "exit_time": pos.exit_time,
                             "price": pos.price,
-                            "sl": pos.sl,
+                            "tsl": pos.sl,
+                            "sl": pos.initial_sl,
                             "tp": pos.tp,
                             "close": pos.close,
                             "state": pos.state
@@ -475,8 +471,8 @@ class Animus():
 
                 if open_positions >= options["max_concurrent_trades"]:
                     print("MAX POSITIONS OPEN")
-                    logger.warn("MAX POSITIONS OPEN")        
-                    
+                    logger.warn("MAX POSITIONS OPEN")
+
                 
                 for action in mods["actions"]:
                     match action["action"]:
@@ -503,10 +499,14 @@ class Animus():
                                             # move stop loss to break even
                                             p.move_sl(p.price, row["close"])
                                         elif r > options["move_sl"]["trailing_at_r"]:
-                                            if action["target_sl"] > p.price and p.type == POSITION_TYPE.BUY.value:
-                                                p.move_sl(action["target_sl"], row["close"])
-                                            elif action["target_sl"] < p.price and p.type == POSITION_TYPE.SELL.value:
-                                                p.move_sl(action["target_sl"], row["close"])
+                                            if action["new_sl_target"] > p.price and p.type == POSITION_TYPE.BUY.value:
+                                                # add margin to sl
+                                                sl = action["new_sl_target"] - (p.price - p.initial_sl) * options["sl_level_margin"]
+                                                p.move_sl(sl, row["close"])
+                                            elif action["new_sl_target"] < p.price and p.type == POSITION_TYPE.SELL.value:
+                                                # add margin to sl
+                                                sl = action["new_sl_target"] + (p.initial_sl - p.price) * options["sl_level_margin"]
+                                                p.move_sl(sl, row["close"])
                                             else:
                                                 p.move_sl(p.price, row["close"])
 
@@ -545,7 +545,8 @@ class Animus():
                         "entry_time": pos.entry_time,
                         "exit_time": pos.exit_time,
                         "price": pos.price,
-                        "sl": pos.sl,
+                        "tsl": pos.sl,
+                        "sl": pos.initial_sl,
                         "tp": pos.tp,
                         "close": pos.close,
                         "state": pos.state
@@ -623,9 +624,9 @@ class Animus():
                  Constants.PST_DATA_LEVEL.MID.value,
                  Constants.PST_DATA_LEVEL.HIGH.value]
 
-        interval1 = datetime(self._pst_data[level[0]].iloc[1].name, dtfmt) - datetime(self._pst_data[level[0]].iloc[0].name, dtfmt)
-        interval2 = datetime(self._pst_data[level[1]].iloc[1].name, dtfmt) - datetime(self._pst_data[level[1]].iloc[0].name, dtfmt)
-        interval3 = datetime(self._pst_data[level[2]].iloc[1].name, dtfmt) - datetime(self._pst_data[level[2]].iloc[0].name, dtfmt)
+        interval1 = datetime.strptime(self._pst_data[level[0]].iloc[1].name, dtfmt) - datetime.strptime(self._pst_data[level[0]].iloc[0].name, dtfmt)
+        interval2 = datetime.strptime(self._pst_data[level[1]].iloc[1].name, dtfmt) - datetime.strptime(self._pst_data[level[1]].iloc[0].name, dtfmt)
+        interval3 = datetime.strptime(self._pst_data[level[2]].iloc[1].name, dtfmt) - datetime.strptime(self._pst_data[level[2]].iloc[0].name, dtfmt)
 
         return {
             level[0]: 1,

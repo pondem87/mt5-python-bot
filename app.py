@@ -34,7 +34,7 @@ def run_backtest(strategy, options, extras, publish_live_data):
         options,
         extras,
         publish_live_data,
-        options["raw_data"]["primary"],
+        options["raw_pst_data"],
         None,
         None)
 

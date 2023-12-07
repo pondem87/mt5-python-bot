@@ -226,7 +226,8 @@ class PrimarySegment(BaseSegment):
                  key_high_candle: float = None,
                  last_low_candle: float = None,
                  last_high_candle: float = None) -> None:
-        super().__init__(dir=dir,
+        super().__init__(   time_frame=time_frame,
+                            dir=dir,
                             key_low=key_low,
                             key_high=key_high,
                             last_low=last_low,
@@ -875,6 +876,8 @@ class Kraken:
             Constants.PST_DATA_LEVEL.HIGH.value : None
         }
 
+        self._sr_structure = None
+
     @property
     def pst_data(self):
         return self._pst_data
@@ -909,7 +912,7 @@ class Kraken:
 
         # start a new segment if segment closed by confirmed ChOC
         if self._segments[level][-1].choc_confirmed:
-            logger.debug("Appending new primary segment: Level {}", level)
+            logger.debug("Appending new primary segment: Level %s", level)
             self._segments[level].append(
                 PrimarySegment(str(uuid4()),
                 self._segments[level][-1].time_frame,
@@ -947,13 +950,16 @@ class Kraken:
         for level in levels:
             # get the current primary segment for the level
             ps = self._segments[level][-1]
-            prev_ps = self._segments[level][-2]
+            if len(self._segments[level]) < 2:
+                prev_ps = self._segments[level][-1]
+            else:
+                prev_ps = self._segments[level][-2]
 
             _data = {
                 "seg_id": ps.seg_id,
                 "seg_dir": ps.dir,
                 "candle": ps.candles[-1],
-                "candle_dir": self.get_candle_dir(ps.candles[-1]),
+                "candle_dir": self.get_candle_dir(level, ps.candles[-1]),
                 "bos_num": ps.bos_num,
                 "in_bos": ps.in_bos,
                 "in_pull_back": ps.in_pull_back,
@@ -1012,7 +1018,7 @@ class Kraken:
             while True:
                 pss += 1
                 candles = candles - len(self._segments[level][-pss].candles)
-                if candles <= 0 or pss >= len(self.__segments[level]):
+                if candles <= 0 or pss >= len(self._segments[level]):
                     break
 
             _data = {
@@ -1063,7 +1069,7 @@ class Kraken:
     def initialize(self,
                    pst_data,
                    sr_data,
-                   sr_timeframes,
+                   sr_timeframes = None,
                    mode: Constants.ZONING_MODE = None):
 
         logger.info("Initializing the Kraken...")
@@ -1122,8 +1128,8 @@ class Kraken:
         self._sr_structure.process_zones()
 
     
-    def get_candle_dir(self, candle_timestamp: datetime) -> str:
+    def get_candle_dir(self, level, candle_timestamp: datetime) -> str:
 
-        candle_row = self._pst_data.loc[candle_timestamp]
+        candle_row = self._pst_data[level].loc[candle_timestamp]
 
         return Constants.DIRECTION.UP if candle_row["close"] > candle_row["open"] else Constants.DIRECTION.DOWN

@@ -60,17 +60,17 @@ def update_progress(n_intervals):
     figure1.update_layout(height=800, xaxis_rangeslider_visible=False)
 
     # add structure annotation
-    for position in annotation["primary"]["bos"]:
+    for position in annotation["pst_low"]["bos"]:
         if position is not None:
             position = datetime.strptime(position, dtfmt)
             if position > x_begin:
                 figure1.add_vline(x=position, line_width=1, line_color="green")
-    for position in annotation["primary"]["choc"]:
+    for position in annotation["pst_low"]["choc"]:
         if position is not None:
             position = datetime.strptime(position, dtfmt)
             if position > x_begin:
                 figure1.add_vline(x=position, line_width=1, line_color="purple")
-    for position in annotation["primary"]["choc_confirm"]:
+    for position in annotation["pst_low"]["choc_confirm"]:
         if position is not None:
             position = datetime.strptime(position, dtfmt)
             if position > x_begin:
@@ -124,6 +124,8 @@ def update_progress(n_intervals):
                 tpboxbound = trade["tp"]
             else:
                 tpboxbound = None
+
+
 
             # now lets build the boxes
             # if tpboxbound available build a tp box
