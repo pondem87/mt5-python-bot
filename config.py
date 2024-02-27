@@ -6,13 +6,13 @@ strategy = "PRICE_ACTION"
 symbol = symbols["Step Index"]
 
 options = {
-    "entry": "CHOC+BOS",                    # e.g "CHOC", "CHOC_CONFIRMED,
-    "exit": "CHOC",
-    "sl_level": "KEY_LEVEL",        # e.g "KEY_LEVEL", "SEGMENT_RANGE",
+    "entry": "CHOC",                    # e.g "CHOC", "CHOC_CONFIRMED,
+    "exit": "CHOC_CONFIRMED",
+    "sl_level": "KEY_LEVEL",            # e.g "KEY_LEVEL", "SEGMENT_RANGE",
     "sl_level_margin": 0.1,             # e.g 0.1, 0.2,
     "reward_ratio": None,               # e.g 1.5, 2, 3, None,
-    "pst_lookback_window": 1000,         # e.g 200, 250, 300,
-    "sr_lookback_window": 2400,          # e.g 200, 250, 300,
+    "pst_lookback_window": 1000,        # e.g 200, 250, 300,
+    "sr_lookback_window": 2400,         # e.g 200, 250, 300,
     "sr_refresh_window": 250,
     "init_account_balance": 200,        # e.g 100,
     "risk_per_trade": 0.2,              # e.g 0.1, 0.4,
