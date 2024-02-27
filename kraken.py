@@ -4,8 +4,6 @@ Start 21 November 2023
 
 Kraken is a price structure detection engine which classifies candle patterns based on ICT principles.
 The algo will create an object based representation of price structure and generate signals.
-The working principle is that price has internal and external structures. The representation will be based
-on three levels named primary, secondary and tertiary structures
 
 """
 
@@ -41,15 +39,18 @@ logger.addHandler(warn_file_handler)
 Define some enums to avoid using string literals for common options
 """
 class Constants:
+    # used to identify trend direction
     class DIRECTION(Enum):
         UP = "UP"
         DOWN = "DOWN"
         UNDETERMINED = "?"
 
+    # used to identify price action support and resistance
     class ZONE_TYPE(Enum):
         SUPPORT = "SUPPORT"
         RESISTANCE = "RESISTANCE"
 
+    # which part of candle is used as level of interest
     class ZONING_MODE(Enum):
         CANDLE = "CANDLE"
         BODY = "BODY"
@@ -107,7 +108,9 @@ class Candle:
 
 
 """
-Class for common segment features. Shared by all segment levels.
+Class for common segment features. Shared by all segments.
+A segment is a sequence of candlesticks representing either an uptrend or downtrend.
+Demarcated by change of change of character from downtrend to uptrend or vice versa
 """
 class BaseSegment:
     def __init__(self,
@@ -211,7 +214,7 @@ class BaseSegment:
 
 """
 A primary segment contains a set of candles that are part of a structure an 'uptrend' or 'downtrend'
-A new segment starts after a confirmed ChOC
+A new segment starts after a confirmed ChOC (Change of character)
 """
 class PrimarySegment(BaseSegment):
     def __init__(self,
@@ -506,9 +509,10 @@ class PrimarySegment(BaseSegment):
 
 
 """
-SR_Container
+SR_Structure.
 This class handles the higher timeframe structure and parses out the support and resistance regions.
-We still use ICT concepts to monitor trends and inflexion points
+We still use ICT concepts to monitor trends and inflexion points which then become support and resistance levels.
+Change of character levels from the primary structure are used as levels of interest.
 """
 class SR_Structure:
 
@@ -553,8 +557,9 @@ class SR_Structure:
         
 
     """
-    RSR_Zone
+    ASR_Zone
     Class for handling aggregated support and resistance zones
+    If two RSR_Zones overlap they are merged into one ASR_Zone.
     """    
     class ASR_Zone:
         def __init__(self, type: Constants.ZONE_TYPE, x: datetime, interval: List[float]) -> None:
@@ -735,10 +740,6 @@ class SR_Structure:
             newtime = None
             newtype = None
 
-            #datetime_fmt = "%Y-%m-%d %H:%M:%S"
-            #r_datetime = datetime.strptime( raw.x, datetime_fmt)
-            #a_datetime = datetime.strptime(aggr.x, datetime_fmt)
-
             #if r_datetime < a_datetime:
             if raw.x < aggr.x:
                 newtime = raw.x
@@ -763,10 +764,6 @@ class SR_Structure:
             # compare datetimes
             newtime = None
             newtype = None
-
-            #datetime_fmt = "%Y-%m-%d %H:%M:%S"
-            #r_datetime = datetime.strptime( raw.x, datetime_fmt)
-            #a_datetime = datetime.strptime(aggr.x, datetime_fmt)
 
             #if r_datetime < a_datetime:
             if raw.x < aggr.x:
@@ -1092,7 +1089,7 @@ class Kraken:
         ]
 
         for level in levels:
-            self._pst_data[level]: pd.DataFrame = pst_data[level].copy()        # Pandas DataFrame with candlestick data
+            self._pst_data[level] = pst_data[level].copy()        # Pandas DataFrame with candlestick data
 
         # iterate through candlestick data per level
         for level in levels:

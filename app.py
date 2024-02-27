@@ -1,4 +1,4 @@
-from config import strategy, options, extras
+from config import strategy, options, extras, simulation
 from animus import Animus
 from kraken import Constants
 import pika
@@ -7,10 +7,10 @@ import json
 
 animus = Animus()
 
-animus.sim_speed = 0.5
-animus.publish_cycle = 2
-animus.publish_live_data = False
-animus.annotation_candle_length = 200
+animus.sim_speed = simulation["sim_speed"]
+animus.publish_cycle = simulation["publish_cycle"]
+animus.publish_live_data = simulation["publish_live_data"]
+animus.annotation_candle_length = simulation["annotation_candle_length"]
 
 # establish pika connenction and queue
 if animus.publish_live_data:
