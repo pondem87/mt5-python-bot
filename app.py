@@ -1,20 +1,23 @@
 from config import strategy, options, extras
 from animus import Animus
+from kraken import Constants
 import pika
 import json
 
 
 animus = Animus()
 
-animus.sim_speed = 0.25
-animus.publish_live_data = True
+animus.sim_speed = 0.5
+animus.publish_cycle = 2
+animus.publish_live_data = False
 animus.annotation_candle_length = 200
 
 # establish pika connenction and queue
-conn_params = pika.ConnectionParameters("localhost")
-conn = pika.BlockingConnection(conn_params)
-channel = conn.channel()
-channel.queue_declare("mt5_sim_data")
+if animus.publish_live_data:
+    conn_params = pika.ConnectionParameters("localhost")
+    conn = pika.BlockingConnection(conn_params)
+    channel = conn.channel()
+    channel.queue_declare("mt5_sim_data")
 
 
 # data publishing
@@ -35,13 +38,16 @@ def run_backtest(strategy, options, extras, publish_live_data):
         extras,
         publish_live_data,
         options["raw_pst_data"],
-        None,
-        None)
+        options["raw_sr_data"],
+        options["sr_refresh_window"],
+        Constants.ZONING_MODE.WICK)
+    
 
     return "Simulation complete"
 
 # start simlation
 run_backtest(strategy, options, extras, publish_live_data)
 
-# close pika connection
-conn.close()
+if animus.publish_live_data:
+    # close pika connection
+    conn.close()

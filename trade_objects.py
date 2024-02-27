@@ -107,14 +107,6 @@ class Account(Base):
     def equity(self) -> float:
         return self._equity
     
-    @balance.setter
-    def equity(self, value):
-        if value < self._min_equity:
-            self._min_equity = value
-        if value > self._max_equity:
-            self._max_equity = value
-        self._equity = value
-
 
     def update_equity(self, price_low: float, price_high: float):
         unrealised_profit: float = 0

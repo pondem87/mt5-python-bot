@@ -545,11 +545,11 @@ class SR_Structure:
         
         @property
         def body(self) -> Tuple[float, float]:
-            return self.body
+            return self._body
         
         @property
         def wick(self) -> Tuple[float, float]:
-            return self.wick
+            return self._wick
         
 
     """
@@ -622,18 +622,24 @@ class SR_Structure:
 
     @property
     def sr_data(self):
-        return self.sr_data
+        return self._sr_data
     
     @sr_data.setter
     def sr_data(self, value):
         self._sr_data = value
+
+    def reset_segments(self):
+        self._segments = {
+            Constants.SR_DATA_LEVEL.LOW.value: [PrimarySegment(str(uuid4()), "T1")],
+            Constants.SR_DATA_LEVEL.HIGH.value: [PrimarySegment(str(uuid4()), "T2")]
+        }
 
     # adds candle to the structure and calculates side effects
     def process_candle(self, level, candle):
         # start a new segment if segment closed by confirmed ChOC
         if self._segments[level][-1].choc_confirmed:
             logger.debug("Appending new primary segment to SR structure")
-            self._segments.append(
+            self._segments[level].append(
                 PrimarySegment(str(uuid4()),
                 self._segments[level][-1].time_frame,
                 self._segments[level][-1].opp_dir,
@@ -665,7 +671,7 @@ class SR_Structure:
 
                 if segment.dir == Constants.DIRECTION.UP:
                     # get a resistance zone
-                    candle_data = self._sr_data.loc[segment.highest_candle]
+                    candle_data = self._sr_data[level].loc[segment.highest_candle]
 
                     if candle_data['open'] > candle_data['close']:
                         # bearish candle
@@ -680,7 +686,7 @@ class SR_Structure:
 
                 elif segment.dir == Constants.DIRECTION.DOWN:
                     # get a resistance zone
-                    candle_data = self._sr_data.loc[segment.lowest_candle]
+                    candle_data = self._sr_data[level].loc[segment.lowest_candle]
 
                     if candle_data['open'] > candle_data['close']:
                         # bearish candle
@@ -843,7 +849,7 @@ class SR_Structure:
         for zone in self._aggr_sr_zones:
             zones.append({
                 "id": zone.id,
-                "type": zone.type,
+                "type": zone.type.value,
                 "x": zone.x,
                 "interval": zone.interval,
                 "retests": zone.retests
@@ -1053,6 +1059,8 @@ class Kraken:
             _data["key_high"] = activ_ps.key_high
             _data["key_low"] = activ_ps.key_low
             _data["timeframe"] = activ_ps.time_frame
+            _data["dir"] = activ_ps.dir.value
+            _data["in_choc"] = activ_ps.choc
 
             data["pst_" + level] = _data
 
@@ -1110,6 +1118,7 @@ class Kraken:
         
         if self._sr_structure is not None:
             self._sr_structure.sr_data = neo_sr_data
+            self._sr_structure.reset_segments()
         else:
             self._sr_structure = SR_Structure(neo_sr_data, mode)
 

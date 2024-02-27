@@ -53,6 +53,7 @@ class Advisor:
         self._options = options
         self._choc_expired = False
         self._bos_expired = False
+        self._mods_bos_expired = False
 
     def choc_reset(self):
         self._choc_expired = False
@@ -66,7 +67,14 @@ class Advisor:
     def bos_expire(self):
         self._bos_expired = True
 
-    def generate_positions(self, closing_price, balance, signals, options):
+    def mods_bos_reset(self):
+        self._mods_bos_expired = False
+
+    def mods_bos_expire(self):
+        self._mods_bos_expired = True
+
+
+    def generate_positions(self, closing_price, balance, signals):
         if not signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc"]:
             self.choc_reset()
 
@@ -74,7 +82,10 @@ class Advisor:
             case "SIMPLE_TREND":
                 # trading simple trends
                 # if secondary structure trend is UP we are looking to buy when primary structure turns to the up side 
-                if signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["seg_dir"] == Constants.DIRECTION.UP: # and signals["pst_" + Constants.PST_DATA_LEVEL.HIGH.value]["seg_dir"] == Constants.DIRECTION.UP:
+                if (signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["seg_dir"] == Constants.DIRECTION.UP or \
+                    (signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["seg_dir"] == Constants.DIRECTION.DOWN and signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["choc"])) \
+                    and ((signals["pst_" + Constants.PST_DATA_LEVEL.HIGH.value]["seg_dir"] == Constants.DIRECTION.UP or \
+                        (signals["pst_" + Constants.PST_DATA_LEVEL.HIGH.value]["seg_dir"] == Constants.DIRECTION.DOWN and signals["pst_" + Constants.PST_DATA_LEVEL.HIGH.value]["choc"])) or self._options["exclude_high_trend"]):
 
                     if self._options["entry"] == "CHOC_CONFIRMED":
                         if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc_confirmed"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN: # down changing to UP
@@ -84,21 +95,24 @@ class Advisor:
                             sl = sl - (closing_price - sl) * self._options["sl_level_margin"]
                             tp = closing_price + (closing_price - sl) * self._options["reward_ratio"] \
                                 if self._options["reward_ratio"] is not None else None
-                            return self.build_position(POSITION_TYPE.BUY, closing_price, sl, tp, balance, signals, options)
+                            return self.build_position(POSITION_TYPE.BUY, closing_price, sl, tp, balance, signals, self._options)
                     elif self._options["entry"] == "CHOC":
                         if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc"] and not self._choc_expired and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN: # down changing to UP
                             # enter position
                             # sl
-                            sl = signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["low"]
+                            sl = signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["low"] if self._options["sl_level"] == "KEY_LEVEL" else signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["segment_range"]["lowest"]
                             sl = sl - (closing_price - sl) * self._options["sl_level_margin"]
                             tp = closing_price + (closing_price - sl) * self._options["reward_ratio"] \
                                 if self._options["reward_ratio"] is not None else None
                             self.choc_expire()
-                            return self.build_position(POSITION_TYPE.BUY, closing_price, sl, tp, balance, signals, options)
+                            return self.build_position(POSITION_TYPE.BUY, closing_price, sl, tp, balance, signals, self._options)
                     else:
                         return None
                     
-                elif signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["seg_dir"] == Constants.DIRECTION.DOWN: # and signals["pst_" + Constants.PST_DATA_LEVEL.HIGH.value]["seg_dir"] == Constants.DIRECTION.DOWN:
+                elif (signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["seg_dir"] == Constants.DIRECTION.DOWN or \
+                       (signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["seg_dir"] == Constants.DIRECTION.UP and signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["choc"])) \
+                        and ((signals["pst_" + Constants.PST_DATA_LEVEL.HIGH.value]["seg_dir"] == Constants.DIRECTION.DOWN or \
+                              (signals["pst_" + Constants.PST_DATA_LEVEL.HIGH.value]["seg_dir"] == Constants.DIRECTION.UP and signals["pst_" + Constants.PST_DATA_LEVEL.HIGH.value]["choc"])) or self._options["exclude_high_trend"]):
                     
                     if self._options["entry"] == "CHOC_CONFIRMED":
                         if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc_confirmed"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.UP: # down changing to DOWN
@@ -108,23 +122,100 @@ class Advisor:
                             sl = sl + (sl - closing_price) * self._options["sl_level_margin"]
                             tp = closing_price - (sl - closing_price) * self._options["reward_ratio"] \
                                 if self._options["reward_ratio"] is not None else None
-                            return self.build_position(POSITION_TYPE.SELL, closing_price, sl, tp, balance, signals, options)
+                            return self.build_position(POSITION_TYPE.SELL, closing_price, sl, tp, balance, signals, self._options)
                     elif self._options["entry"] == "CHOC":
                         if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc"] and not self._choc_expired and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.UP: # down changing to DOWN
                             # enter position
                             # sl
-                            sl = signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["high"]
+                            sl = signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["high"] if self._options["sl_level"] == "KEY_LEVEL" else signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["segment_range"]["highest"]
                             sl = sl + (sl - closing_price) * self._options["sl_level_margin"]
                             tp = closing_price - (closing_price - sl) * self._options["reward_ratio"] \
                                 if self._options["reward_ratio"] is not None else None
                             self.choc_expire()
-                            return self.build_position(POSITION_TYPE.SELL, closing_price, sl, tp, balance, signals, options)
+                            return self.build_position(POSITION_TYPE.SELL, closing_price, sl, tp, balance, signals, self._options)
                     else:
                         return None
                     
 
             case "PRICE_ACTION":
-                pass
+                if (signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc"] and self._options["entry"] in ["CHOC", "CHOC+BOS"] and not self._choc_expired) \
+                     or (signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc_confirmed"] and self._options["entry"] in ["CHOC_CONFIRMED", "CHOC_CONFIRMED+BOS"]):
+                    
+
+                    # respond to CHOC only once
+                    if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc"] and self._options["entry"] in ["CHOC", "CHOC+BOS"]:
+                            self.choc_expire()
+                    
+                    # check if price at significant level
+                    trade_zone = self.test_choc_zone_interaction(signals["sr_zones"], 
+                                               signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"],
+                                               signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["segment_range"],
+                                               closing_price)
+                    
+                    if trade_zone is not None and trade_zone[0]:
+
+                        if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.UP:
+                            # enter position short position
+                            # sl
+                            sl = signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["high"] if self._options["sl_level"] == "KEY_LEVEL" else signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["segment_range"]["highest"]
+                            sl = sl if sl > trade_zone[1][1] else trade_zone[1][1]
+                            sl = sl + (sl - closing_price) * self._options["sl_level_margin"]
+                            tp = closing_price - (sl - closing_price) * self._options["reward_ratio"] \
+                                if self._options["reward_ratio"] is not None else None
+                            return self.build_position(POSITION_TYPE.SELL, closing_price, sl, tp, balance, signals, self._options)
+                        else:
+                            # enter long position
+                             # sl
+                            sl = signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["low"] if self._options["sl_level"] == "KEY_LEVEL" else signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["segment_range"]["lowest"]
+                            sl = sl if sl < trade_zone[1][0] else trade_zone[1][0]
+                            sl = sl - (closing_price - sl) * self._options["sl_level_margin"]
+                            tp = closing_price + (closing_price - sl) * self._options["reward_ratio"] \
+                                if self._options["reward_ratio"] is not None else None
+                            return self.build_position(POSITION_TYPE.BUY, closing_price, sl, tp, balance, signals, self._options)
+                        
+
+                if (signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["in_bos"] and self._options["entry"] in ["CHOC+BOS","CHOC_CONFIRMED+BOS"] and not self._bos_expired):
+                    
+
+                    # respond to BOS only once
+                    self.bos_expire()
+                    
+                    # check if price at significant level
+                    trade_zone = self.test_bos_zone_interaction(signals["sr_zones"], 
+                                               signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"],
+                                               signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["low"],
+                                               signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["high"],
+                                               closing_price)
+                    
+                    if trade_zone is not None and trade_zone[0]:
+
+                        if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN \
+                            and signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["seg_dir"] == Constants.DIRECTION.DOWN \
+                            and signals["pst_" + Constants.PST_DATA_LEVEL.HIGH.value]["seg_dir"] == Constants.DIRECTION.DOWN:
+                            # enter position short position
+                            # sl
+                            sl = signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["high"]
+                            sl = sl if sl > trade_zone[1][1] else trade_zone[1][1]
+                            sl = sl + (sl - closing_price) * self._options["sl_level_margin"]
+                            tp = closing_price - (sl - closing_price) * self._options["reward_ratio"] \
+                                if self._options["reward_ratio"] is not None else None
+                            return self.build_position(POSITION_TYPE.SELL, closing_price, sl, tp, balance, signals, self._options)
+                        elif signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.UP \
+                            and signals["pst_" + Constants.PST_DATA_LEVEL.MID.value]["seg_dir"] == Constants.DIRECTION.UP \
+                            and signals["pst_" + Constants.PST_DATA_LEVEL.HIGH.value]["seg_dir"] == Constants.DIRECTION.UP:
+                            # enter long position
+                             # sl
+                            sl = signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["low"]
+                            sl = sl if sl < trade_zone[1][0] else trade_zone[1][0]
+                            sl = sl - (closing_price - sl) * self._options["sl_level_margin"]
+                            tp = closing_price + (closing_price - sl) * self._options["reward_ratio"] \
+                                if self._options["reward_ratio"] is not None else None
+                            return self.build_position(POSITION_TYPE.BUY, closing_price, sl, tp, balance, signals, self._options)
+                        
+                        else:
+                            return None
+                # No position created        
+                return None
             case _:
                 logger.warn("Incorrect parameter for strategy selection. No positions computed.")
                 return None
@@ -132,7 +223,7 @@ class Advisor:
     """
     modify positions that are already open
     """
-    def modify_positions(self, closing_price, balance, signals, options):
+    def modify_positions(self, closing_price, balance, signals):
 
         result = {
             "actions": []
@@ -141,68 +232,58 @@ class Advisor:
         if not signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["in_bos"]:
             self.bos_reset()
 
-        match self._strategy:
-            case "SIMPLE_TREND":
-                logger.debug("matched SIMPLE_TREND...")
-                # trading simple trends
-                # if secondary structure trend is UP we are looking to buy when primary structure turns to the up side
-
-
-                if self._options["exit"] == "CHOC_CONFIRMED":
-                    if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc_confirmed"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.UP: # UP changing to DOWN
-                        # close_positions
+        
+        if self._options["exit"] == "CHOC_CONFIRMED":
+            if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc_confirmed"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.UP: # UP changing to DOWN
+                # close_positions
                             
-                        result["actions"].append(
-                            {
-                                "action": "CLOSE",
-                                "position_type": POSITION_TYPE.BUY.value,
-                                "instr": self._options["instr"]
-                            })
+                result["actions"].append(
+                    {
+                        "action": "CLOSE",
+                        "position_type": POSITION_TYPE.BUY.value,
+                        "instr": self._options["instr"]
+                    })
                         
-                    elif signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc_confirmed"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN: # DOWN changing to UP
-                        # close_positions
-                        result["actions"].append(
-                            {
-                                "action": "CLOSE",
-                                "position_type": POSITION_TYPE.SELL.value,
-                                "instr": self._options["instr"]
-                            })
+            elif signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc_confirmed"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN: # DOWN changing to UP
+                # close_positions
+                result["actions"].append(
+                    {
+                        "action": "CLOSE",
+                        "position_type": POSITION_TYPE.SELL.value,
+                        "instr": self._options["instr"]
+                    })
                         
-                elif self._options["exit"] == "CHOC":
-                    if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.UP: # UP changing to DOWN
-                        # close_positions
-                        result["actions"].append(
-                            {
-                                "action": "CLOSE",
-                                "position_type": POSITION_TYPE.BUY.value,
-                                "instr": self._options["instr"]
-                            })
+        elif self._options["exit"] == "CHOC":
+            if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.UP: # UP changing to DOWN
+                # close_positions
+                result["actions"].append(
+                    {
+                        "action": "CLOSE",
+                        "position_type": POSITION_TYPE.BUY.value,
+                        "instr": self._options["instr"]
+                    })
                         
-                    if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN: # down changing to DOWN
-                        # close_positions
-                        result["actions"].append(
-                            {
-                                "action": "CLOSE",
-                                "position_type": POSITION_TYPE.SELL.value,
-                                "instr": self._options["instr"]
-                            })
+            if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["choc"] and signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN: # down changing to DOWN
+                # close_positions
+                result["actions"].append(
+                    {
+                        "action": "CLOSE",
+                        "position_type": POSITION_TYPE.SELL.value,
+                        "instr": self._options["instr"]
+                    })
                        
                     
-                if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["in_bos"]:
+        if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["in_bos"] and not self._mods_bos_expired:
 
-                    result["actions"].append({
-                        "action": "MOVE_SL",
-                        "position_type": POSITION_TYPE.SELL.value if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN else POSITION_TYPE.BUY.value,
-                        "instr": self._options["instr"],
-                        "new_sl_target": signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["high"] if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN \
-                            else signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["low"]
-                    })
+            result["actions"].append({
+                "action": "MOVE_SL",
+                "position_type": POSITION_TYPE.SELL.value if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN else POSITION_TYPE.BUY.value,
+                "instr": self._options["instr"],
+                "new_sl_target": signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["high"] if signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["seg_dir"] == Constants.DIRECTION.DOWN \
+                    else signals["pst_" + Constants.PST_DATA_LEVEL.LOW.value]["key_levels"]["low"]
+            })
 
-                    self.bos_expire()
-
-            case _:
-                logger.debug("No strategy match")
-
+            self.mods_bos_expire()
 
         return result
     
@@ -215,6 +296,7 @@ class Advisor:
         # if volume acceptable
         if volume < options["symbol"]["volume_min"]:
             logger.warn("Volume for {} should be more than {}: Current volume is {}".format(options["instr"], options["symbol"]["volume_min"], volume))
+            print("NO TRADE: POSITION REQUIRES TOO HIGH VOLUME")
             return None
         elif volume > options["symbol"]["volume_max"]:
             logger.warn("Volume for {} should be less than {}: Current volume is {}".format(options["instr"], options["symbol"]["volume_max"], volume))
@@ -238,6 +320,115 @@ class Advisor:
             "sl": sl,
             "tp": take_profit
         }
+    
+
+    """
+    test if bos occurs at SR zone
+    """
+    def test_bos_zone_interaction(self, sr_zones, seg_dir, key_low, key_high, close_price) -> bool:
+
+        zone = None
+
+        bos_seg_dir = Constants.DIRECTION.UP if seg_dir == Constants.DIRECTION.DOWN else Constants.DIRECTION.DOWN
+
+        # choose zone criteria
+        if self._options["sr_zone_interaction"] == "TOUCH":
+            zone = Advisor.in_zone(sr_zones, key_low \
+                if seg_dir == Constants.DIRECTION.UP else key_high)
+        elif self._options["sr_zone_interaction"] == "PROXIMITY":
+            zone = self.around_zone(sr_zones, bos_seg_dir, \
+                                    key_low if seg_dir == Constants.DIRECTION.UP else key_high)
+
+        if zone is not None:
+            return (self.test_zone_exit(zone, bos_seg_dir, close_price) and self.zone_clearence(sr_zones, bos_seg_dir, zone), zone["interval"])
+        else:
+            # test failed
+            return None
+
+
+
+
+    """
+    check if choc occurs at SR zone
+    """
+    def test_choc_zone_interaction(self, sr_zones, seg_dir, segment_range, close_price) -> bool:
+
+        zone = None
+        
+        # choose zone criteria
+        if self._options["sr_zone_interaction"] == "TOUCH":
+            zone = Advisor.in_zone(sr_zones, segment_range["highest"] \
+                if seg_dir == Constants.DIRECTION.UP else segment_range["lowest"])
+        elif self._options["sr_zone_interaction"] == "PROXIMITY":
+            zone = self.around_zone(sr_zones, seg_dir, segment_range["highest"] \
+                if seg_dir == Constants.DIRECTION.UP else segment_range["lowest"])
+
+        if zone is not None:
+            return (self.test_zone_exit(zone, seg_dir, close_price) and self.zone_clearence(sr_zones, seg_dir, zone), zone["interval"])
+        else:
+            # test failed
+            return None
+        
+    """
+    Check if no other zone interfering with trade
+    """
+    def zone_clearence(self, sr_zones, seg_dir, zone):
+        clearence_size = (zone["interval"][1] - zone["interval"][0]) * self._options["sr_zone_clearence_factor"]
+        clearence_zone = [zone["interval"][1], zone["interval"][1] + clearence_size] if seg_dir == Constants.DIRECTION.DOWN else [zone["interval"][0] - clearence_size, zone["interval"][0]]
+
+        for sr_zone in sr_zones:
+            if not (sr_zone["interval"][0] >= clearence_zone[1] or sr_zone["interval"][1] <= clearence_zone[0]):
+                return False
+            
+        return True
+
+    
+    """
+    Find the zone in which our key level lies
+    """       
+    def in_zone(sr_zones, key_level):
+        for sr_zone in sr_zones:
+            if key_level >= sr_zone["interval"][0] and key_level <= sr_zone["interval"][1]:
+                return sr_zone
+  
+        return None
+    
+    """
+    Find the zone in whose proximity the key level lies
+    """
+    def around_zone(self, sr_zones, seg_dir , key_level):
+        for zone in sr_zones:
+            allowed_distance = (zone["interval"][1] - zone["interval"][0]) * self._options["sr_zone_proximity_margin"]
+            if (key_level >= zone["interval"][0] and key_level <= (zone["interval"][1] + allowed_distance) \
+                and seg_dir == Constants.DIRECTION.UP) or \
+                (key_level <= zone["interval"][1] and key_level >= (zone["interval"][0] - allowed_distance) \
+                and seg_dir == Constants.DIRECTION.DOWN):
+                return zone
+ 
+        return None
+
+    """
+    Check if closing price in the direction of exiting the zone
+    """
+    def test_zone_exit(self, sr_zone, seg_dir, close_price):
+        allowed_distance = (sr_zone["interval"][1] - sr_zone["interval"][0]) * self._options["sr_zone_entry_margin"]
+
+        if seg_dir == Constants.DIRECTION.UP:
+            distance = sr_zone["interval"][0] - close_price
+            if distance > 0 and distance <= allowed_distance:
+                #pass
+                return True
+            else:
+                # failed
+                return False
+        else:
+            distance = close_price - sr_zone["interval"][1]
+            if distance > 0 and distance <= allowed_distance:
+                #pass
+                return True
+            else:
+                # failed
+                return False
 
 """
 The Animus
@@ -248,9 +439,8 @@ class Animus():
         self._pst_data = {}
         self._sr_data = None                    # stores simulation sr data
         self._pst_iloc: int = None              # marks the current location during simulation
-        self._sr_iloc: int = None               # marks the current location during simulation
         self._pst_last_iloc: int = None         # marks end of simulation end of 
-        self._pst_sr1_iloc_ratios: int = []
+        self._pst_sr_iloc_ratio: int = 0
         self._pst_level_ratios = {}
         self._sr_level_ratios = {}
         self._kraken: Kraken = None
@@ -261,6 +451,7 @@ class Animus():
         self._account_id = None
         self._sim_speed = 0.0
         self._publish_live_data = False
+        self._publish_cycle = 1
         self._sim_options = None
 
     # returns data used to mark points of interest on graphs
@@ -296,6 +487,14 @@ class Animus():
     def publish_live_data(self, value):
         self._publish_live_data = value
 
+    @property
+    def publish_cycle(self):
+        return self._publish_cycle
+    
+    @publish_cycle.setter
+    def publish_cycle(self, value):
+        self._publish_cycle = value
+
     """
     Method to kick off a simulation of the market.
     start: the starting date and time of the simulation
@@ -316,7 +515,7 @@ class Animus():
     }
     """
     def run_backtest(self, start: str, end: str, strategy: str, options, extras, publish_data_func,
-                      pst_files, sr_files = None, pst_sr_ratio = None):
+                      pst_files, sr_files = None, sr_pst_cycle = 100, sr_zoning_mode = None):
         
         logger.info("Running backtest: %s on %s from %s to %s...", strategy, options["instr"], start, end)
         print("Running backtest: {} on {} from {} to {}...".format(strategy, options["instr"], start, end))
@@ -332,10 +531,9 @@ class Animus():
             levels = [Constants.SR_DATA_LEVEL.LOW.value, Constants.SR_DATA_LEVEL.HIGH.value]
             for level in levels:
                 self._sr_data[level] = pd.read_csv(sr_files[level], index_col="time")
-            if pst_sr_ratio is None:
-                raise ValueError ("pst_sr_ratio cannot be null when sr data provided")
-            else:
-                self._pst_sr_iloc_ratio = pst_sr_ratio
+
+            self._sr_level_ratios = self.get_sr_level_ratios()
+            self._pst_sr_iloc_ratio = self.get_pst_sr_iloc_ratio()
 
         self._sim_options = options
 
@@ -365,7 +563,7 @@ class Animus():
             sr_data = None
 
         # call initialize
-        self._kraken.initialize(pst_data, sr_data)
+        self._kraken.initialize(pst_data, sr_data, mode=sr_zoning_mode)
         # create advisor
         self._advisor = Advisor(strategy, options)
 
@@ -385,6 +583,10 @@ class Animus():
                 self._pst_iloc = self._pst_data[Constants.PST_DATA_LEVEL.LOW.value].index.get_loc(index)
                 #print("ROW INDEX IS {}, PST_ILOC IS {}".format(index, self._pst_iloc))
 
+                # renew SR levels at intervals
+                if self._pst_iloc % sr_pst_cycle == 0:
+                    self._kraken.initialize_new_zones(self.load_warm_up_data(DATA_TYPE.SR_DATA, options["sr_lookback_window"]))
+
                 # step through the candles
                 # add candle to the Kraken
                 levels = [Constants.PST_DATA_LEVEL.LOW.value, Constants.PST_DATA_LEVEL.MID.value, Constants.PST_DATA_LEVEL.HIGH.value]
@@ -401,32 +603,40 @@ class Animus():
                             level, _row.name, _row["open"], _row["high"], _row["low"], _row["close"]
                         )
 
+
                 # get signals and annotations
                 signals = self._kraken.get_signal_data()
-                self._annotation_data = self._kraken.get_annotation(self._pst_level_ratios, self._annotation_candle_length)
-                position_data = []
-                for pos in account.positions:
-                    position_data.append(
-                        {
-                            "type": pos.type,
-                            "entry_time": pos.entry_time,
-                            "exit_time": pos.exit_time,
-                            "price": pos.price,
-                            "tsl": pos.sl,
-                            "sl": pos.initial_sl,
-                            "tp": pos.tp,
-                            "close": pos.close,
-                            "state": pos.state
-                        }
-                    )
-                    #print(pos)
+                if self.publish_live_data and self._pst_iloc % self._publish_cycle == 0:
+                    self._annotation_data = self._kraken.get_annotation(self._pst_level_ratios, self._annotation_candle_length)
+                    position_data = []
+                    for pos in account.positions:
+                        position_data.append(
+                            {
+                                "type": pos.type,
+                                "entry_time": pos.entry_time,
+                                "exit_time": pos.exit_time,
+                                "price": pos.price,
+                                "tsl": pos.sl,
+                                "sl": pos.initial_sl,
+                                "tp": pos.tp,
+                                "close": pos.close,
+                                "state": pos.state
+                            }
+                        )
+                        #print(pos)
 
-                self._positions_data = position_data
+                    self._annotation_data["account"] = {
+                        "initial_balance": account.initial_balance,
+                        "equity": account.equity,
+                        "balance": account.balance
+                    }
+
+                    self._positions_data = position_data
 
                 # get signal actions
                 _balance = account.initial_balance if options["compound_risk"] == False else account.balance
-                trade = self._advisor.generate_positions(row["close"], _balance, signals, options)
-                mods = self._advisor.modify_positions(row["close"], _balance, signals, options)
+                trade = self._advisor.generate_positions(row["close"], _balance, signals)
+                mods = self._advisor.modify_positions(row["close"], _balance, signals)
 
                 # update positions
                 for position in account.positions:
@@ -440,6 +650,7 @@ class Animus():
                 open_positions = account.count_open_positions()
 
                 if trade is not None and open_positions < options["max_concurrent_trades"]:
+                    
                     if trade["type"] == POSITION_TYPE.SELL.value:
                         account.positions.append(
                             ShortPosition(
@@ -515,10 +726,11 @@ class Animus():
                 session.commit()
 
                 # publish data
-                if self._publish_live_data:
+                if self._publish_live_data and self._pst_iloc % self._publish_cycle == 0:
                     publish_data_func()
+                    time.sleep(self._sim_speed)
 
-                time.sleep(self._sim_speed)
+                
 
             session.commit()
             logger.info("Completed simultion/backtest successfully...")
@@ -604,9 +816,10 @@ class Animus():
                 
                 for level in levels:
                     # get data for each timeframe level
-                    start_iloc = (self._sr_iloc - num_candles) if num_candles <= self._sr_iloc else 0
+                    start_iloc = int((self._pst_iloc/self._pst_sr_iloc_ratio) - (num_candles/self._pst_sr_iloc_ratio)) if num_candles <= self._sr_iloc else 0
+                    sr_iloc = self._pst_iloc/self._pst_sr_iloc_ratio
                     # get a slice of data for each level adjusting the slicer with timeframe ratios
-                    sr_data[level] = self._sr_data[int(start_iloc/self._sr_level_ratios[level]):int(self._sr_iloc/self._sr_level_ratios[level])]
+                    sr_data[level] = self._sr_data[level][int(start_iloc/self._sr_level_ratios[level]):int(sr_iloc/self._sr_level_ratios[level])]
 
                 return sr_data
                 
@@ -640,10 +853,18 @@ class Animus():
         level = [Constants.SR_DATA_LEVEL.LOW.value,
                     Constants.SR_DATA_LEVEL.HIGH.value]
         
-        interval1 = datetime(self._pst_data[level[0]].iloc[1].name, dtfmt) - datetime(self._pst_data[level[0]].iloc[0].name, dtfmt)
-        interval2 = datetime(self._pst_data[level[1]].iloc[1].name, dtfmt) - datetime(self._pst_data[level[1]].iloc[0].name, dtfmt)
+        interval1 = datetime.strptime(self._pst_data[level[0]].iloc[1].name, dtfmt) - datetime.strptime(self._pst_data[level[0]].iloc[0].name, dtfmt)
+        interval2 = datetime.strptime(self._pst_data[level[1]].iloc[1].name, dtfmt) - datetime.strptime(self._pst_data[level[1]].iloc[0].name, dtfmt)
 
         return {
             level[0]: 1,
             level[1]: interval2/interval1
         }
+    
+    def get_pst_sr_iloc_ratio(self):
+        dtfmt = "%Y-%m-%d %H:%M:%S"
+
+        pst_interval = datetime.strptime(self._pst_data[Constants.PST_DATA_LEVEL.LOW.value].iloc[1].name, dtfmt) - datetime.strptime(self._pst_data[Constants.PST_DATA_LEVEL.LOW.value].iloc[0].name, dtfmt)
+        sr_interval = datetime.strptime(self._sr_data[Constants.SR_DATA_LEVEL.LOW.value].iloc[1].name, dtfmt) - datetime.strptime(self._sr_data[Constants.SR_DATA_LEVEL.LOW.value].iloc[0].name, dtfmt)
+
+        return sr_interval/pst_interval

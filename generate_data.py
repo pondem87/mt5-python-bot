@@ -8,26 +8,29 @@ mt5.initialize()
 fmt = "%Y-%m-%d %H:%M:%S"
 
 instr = "Step Index"
-_from = datetime.strptime("2023-10-01 00:00:00", fmt)
-_to = datetime.strptime("2023-11-30 23:59:00", fmt)
+_from = datetime.strptime("2023-09-01 00:00:00", fmt)
+_to = datetime.strptime("2023-12-15 23:59:00", fmt)
 
 timeframes = [
     {
-        "k": mt5.TIMEFRAME_M15,
-        "str": "M15"
+        "k": mt5.TIMEFRAME_M5,
+        "str": "M5"
     },
-
     {
         "k": mt5.TIMEFRAME_H1,
         "str": "H1"
     },
     {
-        "k": mt5.TIMEFRAME_H4,
-        "str": "H4"
+        "k": mt5.TIMEFRAME_H6,
+        "str": "H6"
     },
     {
         "k": mt5.TIMEFRAME_H12,
         "str": "H12"
+    },
+    {
+        "k": mt5.TIMEFRAME_D1,
+        "str": "D1"
     }
 ]
 

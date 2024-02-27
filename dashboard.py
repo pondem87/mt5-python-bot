@@ -11,12 +11,6 @@ from threading import Thread
 
 dtfmt = "%Y-%m-%d %H:%M:%S"
 
-# establish pika connenction and queue
-conn_params = pika.ConnectionParameters("localhost")
-conn = pika.BlockingConnection(conn_params)
-channel = conn.channel()
-channel.queue_declare("mt5_sim_data")
-
 sim_data = json.dumps({"bars": [], "annotation": {}})
 
 
@@ -26,10 +20,12 @@ app = Dash(__name__)
 app.layout = html.Div(
     children=[
         html.H1(children='Kraken Strategy Simulation'),
-        html.P(id='desc', children='Welcome to the Kraken visualization for testing'),
+        html.H3(id='account', children='Entry time frame'),
+        html.P(id='levels'),
         html.H3(id='title', children='Entry time frame'),
-        dcc.Interval(id='interval-comp', interval=500, n_intervals=0),
-        dcc.Graph(id="main-chart")
+        dcc.Interval(id='interval-comp', interval=1000, n_intervals=0),
+        dcc.Graph(id="main-chart"),
+        html.P(id='desc', children='Welcome to the Kraken visualization for testing')
     ]
 )
 
@@ -37,7 +33,9 @@ app.layout = html.Div(
 @app.callback(
     [Output('main-chart', 'figure'),
      Output('title', 'children'),
-     Output('desc', 'children')],
+     Output('desc', 'children'),
+     Output('account', 'children'),
+     Output('levels', 'children')],
     [Input("interval-comp", "n_intervals")]
 )
 def update_progress(n_intervals):
@@ -54,10 +52,12 @@ def update_progress(n_intervals):
     # get start of data
     x_begin = datetime.strptime(pst_df.iloc[0].name, dtfmt)
     x_end = datetime.strptime(pst_df.iloc[-1].name, dtfmt)
+    y_max = pst_df["high"].max()
+    y_min = pst_df["low"].min()
 
     # creat figure1
     figure1 = go.Figure(data=[go.Candlestick(x=pst_df.index, open=pst_df['open'], high=pst_df['high'], low=pst_df['low'], close=pst_df['close'])])
-    figure1.update_layout(height=800, xaxis_rangeslider_visible=False)
+    figure1.update_layout(height=700, xaxis_rangeslider_visible=False)
 
     # add structure annotation
     for position in annotation["pst_low"]["bos"]:
@@ -141,10 +141,36 @@ def update_progress(n_intervals):
             slx.extend(_slx)
             sly.extend(_sly)
 
+            # lets put the trailing stop loss
+            figure1.add_shape(type="line",
+              x0=farleft, 
+              y0=trade["tsl"], 
+              x1=farright, 
+              y1=trade["tsl"],
+              line=dict(color='purple', width=2))
+
+
     # add profit region
     figure1.add_trace(go.Scatter(x=tpx, y=tpy, fill="toself", line=dict(color='green', width=1)))
     # add loss region
     figure1.add_trace(go.Scatter(x=slx, y=sly, fill="toself", line=dict(color='red', width=1)))
+
+    # print zones near price action
+    x = []
+    y = []
+    lastx = x_end
+
+    for zone in annotation["sr_zones"]:
+        if zone['interval'][0] <= y_max + (y_max - y_min) * 0.1 and \
+            zone['interval'][1] >= y_min - (y_max - y_min) * 0.1:
+            # show zones that are within 10% of min and max price in window
+            x_val = x_begin if datetime.strptime(zone['x'], dtfmt) < x_begin else zone['x']
+            zx = [x_val, x_val, lastx, lastx, x_val, None]
+            zy = [zone['interval'][0], zone['interval'][1], zone['interval'][1], zone['interval'][0], zone['interval'][0], None]
+            x.extend(zx)
+            y.extend(zy)
+
+    figure1.add_trace(go.Scatter(x=x, y=y, fill="toself", line=dict(color='blue', width=1)))
 
 
     title = "{}: from {} to {}".format(
@@ -152,17 +178,43 @@ def update_progress(n_intervals):
     )
 
     desc = "Options: {}".format(options)
+
+    levels = "Timeframes: {} - trend {}, choc {};  {} - trend {}, choc {};  {} - trend {}, choc {};".format(
+        annotation["pst_low"]["timeframe"],
+        annotation["pst_low"]["dir"],
+        annotation["pst_low"]["in_choc"],
+        annotation["pst_mid"]["timeframe"],
+        annotation["pst_mid"]["dir"],
+        annotation["pst_mid"]["in_choc"],
+        annotation["pst_high"]["timeframe"],
+        annotation["pst_high"]["dir"],
+        annotation["pst_high"]["in_choc"]
+    )
+
+    account = "INITIAL BALANCE: {}, CURRENT BALANCE: {}, EQUITY: {}".format(
+        annotation["account"]["initial_balance"],
+        annotation["account"]["balance"],
+        annotation["account"]["equity"]
+    )
         
-    return figure1, title, desc
+    return figure1, title, desc, account, levels
 
 
 def received_message(ch, method, properties, data):
-    global sim_data 
+    global sim_data
     sim_data = data
 
-channel.basic_consume("mt5_sim_data", received_message, auto_ack=True)
-
-Thread(target=lambda: channel.start_consuming(), daemon=True).start()
+def run_pika():
+    # establish pika connenction and queue
+    conn_params = pika.ConnectionParameters("localhost")
+    conn = pika.BlockingConnection(conn_params)
+    channel = conn.channel()
+    channel.queue_declare("mt5_sim_data")
+    channel.basic_consume("mt5_sim_data", received_message, auto_ack=True)
+    channel.start_consuming()
 
 if __name__ == "__main__":
+
+    Thread(target=run_pika, daemon=True).start()
+
     app.run_server(debug=True)
