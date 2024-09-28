@@ -1,6 +1,2 @@
-/venv
-
-log/
-mt5/
-data/
-instr_data/
+venv
+*__pycache__*

@@ -1,0 +1,8 @@
+[project]
+name = "mt5-python-bot"
+version = "0.1.0"
+description = "Trading bot for use with MT5"
+authors = [
+    {name = "Tendai Pfidze", email = "pfidzetendai@gmail.com"}
+]
+dependencies = []
