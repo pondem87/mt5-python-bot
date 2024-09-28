@@ -14,7 +14,7 @@ import pandas as pd
 from trade_objects import Account, Position, ShortPosition, LongPosition, POSITION_TYPE, POSITION_STATE, engine
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from utility import round_to_ref
+from util.utility import round_to_ref
 import time
 from datetime import datetime
 import logging
