@@ -11,7 +11,7 @@ from typing import List, Tuple
 from datetime import datetime
 import pandas as pd
 from uuid import uuid4
-from enum import Enum
+from ict_components.types import DIRECTION, SR_DATA_LEVEL, PST_DATA_LEVEL, ZONE_TYPE, ZONING_MODE
 import logging
 
 # set up logging
@@ -34,36 +34,6 @@ warn_file_handler.setLevel("WARN")
 logger.addHandler(general_file_handler)
 logger.addHandler(warn_file_handler)
 
-
-"""
-Define some enums to avoid using string literals for common options
-"""
-class Constants:
-    # used to identify trend direction
-    class DIRECTION(Enum):
-        UP = "UP"
-        DOWN = "DOWN"
-        UNDETERMINED = "?"
-
-    # used to identify price action support and resistance
-    class ZONE_TYPE(Enum):
-        SUPPORT = "SUPPORT"
-        RESISTANCE = "RESISTANCE"
-
-    # which part of candle is used as level of interest
-    class ZONING_MODE(Enum):
-        CANDLE = "CANDLE"
-        BODY = "BODY"
-        WICK = "WICK"
-
-    class PST_DATA_LEVEL(Enum):
-        LOW = "low"
-        MID = "mid"
-        HIGH = "high"
-
-    class SR_DATA_LEVEL(Enum):
-        LOW = "low"
-        HIGH = "high"
 
 """
 Class for working on candles. Provides access to candle properties and useful operations on candle data
@@ -102,9 +72,9 @@ class Candle:
     @property
     def dir(self) -> str:
         if self._close > self._open:
-            return Constants.DIRECTION.UP
+            return DIRECTION.UP
         else:
-            return Constants.DIRECTION.DOWN
+            return DIRECTION.DOWN
 
 
 """
@@ -115,7 +85,7 @@ Demarcated by change of change of character from downtrend to uptrend or vice ve
 class BaseSegment:
     def __init__(self,
                  time_frame: str,
-                 dir: Constants.DIRECTION = Constants.DIRECTION.UNDETERMINED,
+                 dir: DIRECTION = DIRECTION.UNDETERMINED,
                  key_low: float = None,
                  key_high: float = None,
                  last_low: float = None,
@@ -169,7 +139,7 @@ class BaseSegment:
         return self._segment_low
     
     @property
-    def dir(self) -> Constants.DIRECTION:
+    def dir(self) -> DIRECTION:
         return self._dir
     
     @property
@@ -209,8 +179,8 @@ class BaseSegment:
             return None
         
     @property
-    def opp_dir(self) -> Constants.DIRECTION:
-        return Constants.DIRECTION.DOWN if self._dir == Constants.DIRECTION.UP else Constants.DIRECTION.UP    
+    def opp_dir(self) -> DIRECTION:
+        return DIRECTION.DOWN if self._dir == DIRECTION.UP else DIRECTION.UP    
 
 """
 A primary segment contains a set of candles that are part of a structure an 'uptrend' or 'downtrend'
@@ -220,7 +190,7 @@ class PrimarySegment(BaseSegment):
     def __init__(self,
                  seg_id: str,
                  time_frame: str,
-                 dir: Constants.DIRECTION = Constants.DIRECTION.UNDETERMINED,
+                 dir: DIRECTION = DIRECTION.UNDETERMINED,
                  key_low: float = None,
                  key_high: float = None,
                  last_low: float = None,
@@ -308,7 +278,7 @@ class PrimarySegment(BaseSegment):
 
     # set last lows and highs
     def set_last_high_low(self, candle: Candle):
-        if not (self._dir == Constants.DIRECTION.DOWN and self._in_bos):
+        if not (self._dir == DIRECTION.DOWN and self._in_bos):
             if self._last_high is None:
                 self._last_high = candle.high
                 self._last_high_candle = candle.timestamp
@@ -316,7 +286,7 @@ class PrimarySegment(BaseSegment):
                 self._last_high = candle.high
                 self._last_high_candle = candle.timestamp
 
-        if not (self._dir == Constants.DIRECTION.UP and self._in_bos): 
+        if not (self._dir == DIRECTION.UP and self._in_bos): 
             if self._last_low is None:
                 self._last_low = candle.low
                 self._last_low_candle = candle.timestamp
@@ -358,7 +328,7 @@ class PrimarySegment(BaseSegment):
         self.update_segment_high_low(candle)
 
         match self._dir:
-            case Constants.DIRECTION.UNDETERMINED:
+            case DIRECTION.UNDETERMINED:
                 # if first segment and dir is not yet set - set all parameter according to first candle
                 self._dir = candle.dir
                 self._key_high = candle.high
@@ -369,11 +339,11 @@ class PrimarySegment(BaseSegment):
                 self.set_last_high_low(candle)
                 return
             
-            case Constants.DIRECTION.UP:
+            case DIRECTION.UP:
                 logger.debug("case UP matched in add_candle function")
                 # if price hasnt pulled back since last BOS, check for pull back
                 if not self._in_pull_back and self._in_bos:
-                    if candle.dir == Constants.DIRECTION.DOWN:
+                    if candle.dir == DIRECTION.DOWN:
                         # if candle is bearish, set _in_pull_back to true
                         self._in_pull_back = True
                         self._in_bos = False
@@ -384,7 +354,7 @@ class PrimarySegment(BaseSegment):
 
                 # if price hasnt pulled back since getting into ChOC, check for pull back
                 if self.choc and not self._in_choc_pull_back:
-                    if candle.dir == Constants.DIRECTION.UP:
+                    if candle.dir == DIRECTION.UP:
                         # if candle is bearish, set _in_pull_back to true
                         self._in_choc_pull_back = True
                         self._key_low = self._last_low
@@ -395,7 +365,7 @@ class PrimarySegment(BaseSegment):
                         logger.info("%s UPTREND: ChOC pull back at %s, lower low = %s", self._time_frame, candle.timestamp, self._key_low)
 
                 # check for BOS and ChOC in that order
-                if candle.close > self._key_high and self._in_pull_back and candle.dir == Constants.DIRECTION.UP:
+                if candle.close > self._key_high and self._in_pull_back and candle.dir == DIRECTION.UP:
                     # BOS
                     self._bos_num = self._bos_num + 1
                     self._in_pull_back = False
@@ -437,11 +407,11 @@ class PrimarySegment(BaseSegment):
                         self._choc_confirm_candle = candle.timestamp
                         logger.info("%s UPTREND: ChOC confirmation at %s", self._time_frame, candle.timestamp)
 
-            case Constants.DIRECTION.DOWN:
+            case DIRECTION.DOWN:
                 logger.debug("DOWN case match")
                 # if price hasnt pulled back since last BOS, check for pull back
                 if not self._in_pull_back and self._in_bos:
-                    if candle.dir == Constants.DIRECTION.UP:
+                    if candle.dir == DIRECTION.UP:
                         # if candle is bearish, set _in_pull_back to true
                         self._in_pull_back = True
                         self._in_bos = False
@@ -452,7 +422,7 @@ class PrimarySegment(BaseSegment):
 
                 # if price hasnt pulled back since getting into ChOC, check for pull back
                 if self.choc and not self._in_choc_pull_back:
-                    if candle.dir == Constants.DIRECTION.DOWN:
+                    if candle.dir == DIRECTION.DOWN:
                         # if candle is bearish, set _in_pull_back to true
                         self._in_choc_pull_back = True
                         self._key_high = self._last_high
@@ -463,7 +433,7 @@ class PrimarySegment(BaseSegment):
                         logger.info("%s DOWNTREND: ChOC pull back at %s, higher high = %s", self._time_frame, candle.timestamp, self._key_high)
 
                 # check for BOS and ChOC in that order
-                if candle.close < self._key_low and self._in_pull_back  and candle.dir == Constants.DIRECTION.DOWN:
+                if candle.close < self._key_low and self._in_pull_back  and candle.dir == DIRECTION.DOWN:
                     # BOS
                     self._bos_num = self._bos_num + 1
                     self._in_pull_back = False
@@ -522,7 +492,7 @@ class SR_Structure:
     """
     class RSR_Zone:
         def __init__(self,
-                     type: Constants.ZONE_TYPE,
+                     type: ZONE_TYPE,
                      x: datetime, 
                      full_candle: Tuple[float, float],
                      body:Tuple[float, float],
@@ -540,7 +510,7 @@ class SR_Structure:
             return self._x
         
         @property
-        def type(self) -> Constants.ZONE_TYPE:
+        def type(self) -> ZONE_TYPE:
             return self._type
 
         @property
@@ -562,7 +532,7 @@ class SR_Structure:
     If two RSR_Zones overlap they are merged into one ASR_Zone.
     """    
     class ASR_Zone:
-        def __init__(self, type: Constants.ZONE_TYPE, x: datetime, interval: List[float]) -> None:
+        def __init__(self, type: ZONE_TYPE, x: datetime, interval: List[float]) -> None:
             self._type = type
             self._interval: List[float] = interval  # contains [lower_bound, upper_bound]
             self._retests: int = 0
@@ -591,11 +561,11 @@ class SR_Structure:
                 raise ValueError("Interval must be list of type float")
             
         @property
-        def type(self) -> Constants.ZONE_TYPE:
+        def type(self) -> ZONE_TYPE:
             return self._type
         
         @type.setter
-        def type(self, value: Constants.ZONE_TYPE) -> None:
+        def type(self, value: ZONE_TYPE) -> None:
             self._type = value
 
         @property
@@ -616,8 +586,8 @@ class SR_Structure:
 
     def __init__(self, sr_data, mode: str) -> None:
         self._segments = {
-            Constants.SR_DATA_LEVEL.LOW.value: [PrimarySegment(str(uuid4()), "T1")],
-            Constants.SR_DATA_LEVEL.HIGH.value: [PrimarySegment(str(uuid4()), "T2")]
+            SR_DATA_LEVEL.LOW.value: [PrimarySegment(str(uuid4()), "T1")],
+            SR_DATA_LEVEL.HIGH.value: [PrimarySegment(str(uuid4()), "T2")]
         }
         self._raw_sr_zones: List[SR_Structure.RSR_Zone] = []
         self._aggr_sr_zones: List[SR_Structure.ASR_Zone] = []
@@ -635,8 +605,8 @@ class SR_Structure:
 
     def reset_segments(self):
         self._segments = {
-            Constants.SR_DATA_LEVEL.LOW.value: [PrimarySegment(str(uuid4()), "T1")],
-            Constants.SR_DATA_LEVEL.HIGH.value: [PrimarySegment(str(uuid4()), "T2")]
+            SR_DATA_LEVEL.LOW.value: [PrimarySegment(str(uuid4()), "T1")],
+            SR_DATA_LEVEL.HIGH.value: [PrimarySegment(str(uuid4()), "T2")]
         }
 
     # adds candle to the structure and calculates side effects
@@ -665,7 +635,7 @@ class SR_Structure:
 
         self._raw_sr_zones.clear()
 
-        levels = [Constants.SR_DATA_LEVEL.LOW.value, Constants.SR_DATA_LEVEL.HIGH.value]
+        levels = [SR_DATA_LEVEL.LOW.value, SR_DATA_LEVEL.HIGH.value]
 
         for level in levels:
             # check segments for SR levels
@@ -674,7 +644,7 @@ class SR_Structure:
 
                 zone = None
 
-                if segment.dir == Constants.DIRECTION.UP:
+                if segment.dir == DIRECTION.UP:
                     # get a resistance zone
                     candle_data = self._sr_data[level].loc[segment.highest_candle]
 
@@ -687,9 +657,9 @@ class SR_Structure:
                         body = (candle_data["open"], candle_data["close"])
                         wick = (candle_data["close"], candle_data["high"])
 
-                    zone = SR_Structure.RSR_Zone(Constants.ZONE_TYPE.RESISTANCE, segment.highest_candle, (candle_data['low'], candle_data['high']), body, wick)
+                    zone = SR_Structure.RSR_Zone(ZONE_TYPE.RESISTANCE, segment.highest_candle, (candle_data['low'], candle_data['high']), body, wick)
 
-                elif segment.dir == Constants.DIRECTION.DOWN:
+                elif segment.dir == DIRECTION.DOWN:
                     # get a resistance zone
                     candle_data = self._sr_data[level].loc[segment.lowest_candle]
 
@@ -702,7 +672,7 @@ class SR_Structure:
                         body = (candle_data["open"], candle_data["close"])
                         wick = (candle_data["low"], candle_data["open"])
 
-                    zone = SR_Structure.RSR_Zone(Constants.ZONE_TYPE.SUPPORT, segment.lowest_candle, (candle_data['low'], candle_data['high']), body, wick)
+                    zone = SR_Structure.RSR_Zone(ZONE_TYPE.SUPPORT, segment.lowest_candle, (candle_data['low'], candle_data['high']), body, wick)
 
                 if zone is not None:
                     self._raw_sr_zones.append(zone)
@@ -713,16 +683,16 @@ class SR_Structure:
     """
     def merge_zones(self, aggr: ASR_Zone, raw: RSR_Zone) -> bool:
 
-        mode = Constants.ZONING_MODE.CANDLE if self._mode is None else self._mode
+        mode = ZONING_MODE.CANDLE if self._mode is None else self._mode
 
         # set interval depending on mode
         int_low: float = None
         int_high: float = None
 
-        if mode == Constants.ZONING_MODE.WICK:
+        if mode == ZONING_MODE.WICK:
             int_low = raw.wick[0]
             int_high = raw.wick[1]
-        elif mode == Constants.ZONING_MODE.BODY:
+        elif mode == ZONING_MODE.BODY:
             int_low = raw.body[0]
             int_high = raw.body[1]
         else:
@@ -811,7 +781,7 @@ class SR_Structure:
         
         self._aggr_sr_zones.clear()
         
-        mode = Constants.ZONING_MODE.CANDLE if self._mode is None else self._mode
+        mode = ZONING_MODE.CANDLE if self._mode is None else self._mode
 
         for r_zone in self._raw_sr_zones:
             # check each raw zone to see if it is overlapping with another zone
@@ -824,10 +794,10 @@ class SR_Structure:
                 int_low: float = None
                 int_high: float = None
 
-                if mode == Constants.ZONING_MODE.WICK:
+                if mode == ZONING_MODE.WICK:
                     int_low = r_zone.wick[0]
                     int_high = r_zone.wick[1]
-                elif mode == Constants.ZONING_MODE.BODY:
+                elif mode == ZONING_MODE.BODY:
                     int_low = r_zone.body[0]
                     int_high = r_zone.body[1]
                 else:
@@ -867,16 +837,16 @@ class Kraken:
         
         # structure segments made up of candles
         self._segments = {
-            Constants.PST_DATA_LEVEL.LOW.value : [PrimarySegment(str(uuid4()), pst_timeframes[0])],   # list of all segments of low time frame
-            Constants.PST_DATA_LEVEL.MID.value : [PrimarySegment(str(uuid4()), pst_timeframes[1])],   # list of all segments of middle time frame
-            Constants.PST_DATA_LEVEL.HIGH.value : [PrimarySegment(str(uuid4()), pst_timeframes[2])]  # list of all segments of high time frame
+            PST_DATA_LEVEL.LOW.value : [PrimarySegment(str(uuid4()), pst_timeframes[0])],   # list of all segments of low time frame
+            PST_DATA_LEVEL.MID.value : [PrimarySegment(str(uuid4()), pst_timeframes[1])],   # list of all segments of middle time frame
+            PST_DATA_LEVEL.HIGH.value : [PrimarySegment(str(uuid4()), pst_timeframes[2])]  # list of all segments of high time frame
         }
 
         # dataframes containing primary candle data 
         self._pst_data = {
-            Constants.PST_DATA_LEVEL.LOW.value : None,
-            Constants.PST_DATA_LEVEL.MID.value : None,
-            Constants.PST_DATA_LEVEL.HIGH.value : None
+            PST_DATA_LEVEL.LOW.value : None,
+            PST_DATA_LEVEL.MID.value : None,
+            PST_DATA_LEVEL.HIGH.value : None
         }
 
         self._sr_structure = None
@@ -943,9 +913,9 @@ class Kraken:
         logger.info("Compiling signal data...")
 
         levels = [
-            Constants.PST_DATA_LEVEL.LOW.value,
-            Constants.PST_DATA_LEVEL.MID.value,
-            Constants.PST_DATA_LEVEL.HIGH.value
+            PST_DATA_LEVEL.LOW.value,
+            PST_DATA_LEVEL.MID.value,
+            PST_DATA_LEVEL.HIGH.value
         ]
 
         data = {}
@@ -1005,9 +975,9 @@ class Kraken:
         logger.info("Compiling annotation data...")
 
         levels = [
-            Constants.PST_DATA_LEVEL.LOW.value,
-            Constants.PST_DATA_LEVEL.MID.value,
-            Constants.PST_DATA_LEVEL.HIGH.value
+            PST_DATA_LEVEL.LOW.value,
+            PST_DATA_LEVEL.MID.value,
+            PST_DATA_LEVEL.HIGH.value
         ]
 
         data = {}
@@ -1075,7 +1045,7 @@ class Kraken:
                    pst_data,
                    sr_data,
                    sr_timeframes = None,
-                   mode: Constants.ZONING_MODE = None):
+                   mode: ZONING_MODE = None):
 
         logger.info("Initializing the Kraken...")
 
@@ -1083,9 +1053,9 @@ class Kraken:
         
         # copy pst dataframes
         levels = [
-            Constants.PST_DATA_LEVEL.LOW.value,
-            Constants.PST_DATA_LEVEL.MID.value,
-            Constants.PST_DATA_LEVEL.HIGH.value
+            PST_DATA_LEVEL.LOW.value,
+            PST_DATA_LEVEL.MID.value,
+            PST_DATA_LEVEL.HIGH.value
         ]
 
         for level in levels:
@@ -1104,10 +1074,10 @@ class Kraken:
         if sr_data is not None:
             self.initialize_new_zones(sr_data, mode)
 
-    def initialize_new_zones(self, sr_data: pd.DataFrame, mode: Constants.ZONING_MODE = None):
+    def initialize_new_zones(self, sr_data: pd.DataFrame, mode: ZONING_MODE = None):
         logger.info("Processing support and resistance levels from higher timeframe data.")
 
-        levels = [Constants.SR_DATA_LEVEL.LOW.value, Constants.SR_DATA_LEVEL.HIGH.value]
+        levels = [SR_DATA_LEVEL.LOW.value, SR_DATA_LEVEL.HIGH.value]
 
         neo_sr_data = {}
         for level in levels:
@@ -1138,4 +1108,4 @@ class Kraken:
 
         candle_row = self._pst_data[level].loc[candle_timestamp]
 
-        return Constants.DIRECTION.UP if candle_row["close"] > candle_row["open"] else Constants.DIRECTION.DOWN
+        return DIRECTION.UP if candle_row["close"] > candle_row["open"] else DIRECTION.DOWN

@@ -13,7 +13,7 @@ for a simulated account.
 """
 from typing import List, Optional
 from uuid import uuid4, UUID
-from enum import Enum
+from .types import POSITION_STATE, POSITION_TYPE
 from sqlalchemy import ForeignKey, String, create_engine
 from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase, declared_attr
 import logging
@@ -40,14 +40,6 @@ logger.addHandler(warn_file_handler)
 
 class Base(DeclarativeBase):
     pass
-
-class POSITION_TYPE(Enum):
-    BUY = "BUY"
-    SELL = "SELL"
-
-class POSITION_STATE(Enum):
-    OPEN = "OPEN"
-    CLOSED = "CLOSED"
 
 
 """
